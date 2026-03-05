@@ -1,5 +1,6 @@
 #include "utilities.h"
 #include "globals.h"
+#include <ESPmDNS.h>
 //----------------------------------------
 void prepNames() {
 
@@ -389,6 +390,8 @@ void OTA() {
     Serial.println("OTA line 368");
     //Serial.println (gateName);
     ArduinoOTA.setHostname(gateName);
+    MDNS.begin(gateName);
+    MDNS.addService("http", "tcp", 8266);
     ArduinoOTA.begin();
     otaOn = true;
   }
