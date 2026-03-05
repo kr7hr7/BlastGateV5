@@ -114,6 +114,9 @@ String machineID;
 int gateDelaySeconds = 0;
 String gateType;
 
+// human-readable board type from configuration table
+const char* boardTypeName = "";
+
 const char* mqtt_server = nullptr;
 const char* mqtt_serverAlt = nullptr;
 const char* ssid = nullptr;

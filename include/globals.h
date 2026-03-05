@@ -36,8 +36,11 @@ void toolOff();
 void manualGateOpen();
 void manualGateClose();
 void eepromWrite();
-void gatePinConfig();
+// removed gatePinConfig in favor of table-based configuration
 void gateTypeConfig();
+
+// descriptive string pulled from board lookup table
+extern const char* boardTypeName;
 void OTA();
 void WiFiConnect();
 void settings();

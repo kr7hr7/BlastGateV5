@@ -1,12 +1,13 @@
 #include "boardConfig.h"
 #include "globals.h"
+#include "tables.h"  // lookup helper for pin settings
 
 void boardconfiguration() {
   tools();
   gateTypeConfig();
-    Serial.print ("boardconfig line 4");  
-        Serial.print ("   eeprom Update = ");
-        Serial.println (eepromUpdate);
+  Serial.print ("boardconfig line 4");  
+  Serial.print ("   eeprom Update = ");
+  Serial.println (eepromUpdate);
   if (eepromUpdate == true) {
     eepromWrite();
   }
@@ -27,7 +28,9 @@ void boardconfiguration() {
       errorState();
     }
   }
-  gatePinConfig();
+
+  // configure pins and version using table lookup
+  applyBoardConfiguration();
 }
 
 //********************************************************************************
@@ -91,104 +94,3 @@ void eepromWrite() {
   Serial.println(" ");
 }
 
-//********************************************************************************
-void gatePinConfig() {
-  boardIdByte = boardID.toInt();
-  if (boardIdByte <= 4) {                                 // v2 Blue
-    boardVer = 3;
-  }
-  if (boardIdByte >= 7 && boardIdByte <= 5) {             // v3 Red
-    boardVer = 3;
-    if (boardIdByte == 6 ) {
-      ANALOG_PIN_IN = 32;
-    }
-  }
-  if (boardIdByte >= 10 && boardIdByte <= 13) {           // v4 Blue
-    boardVer = 4;
-  }
-  if (boardIdByte >= 14 && boardIdByte <= 28) {           // v5 Black
-    boardVer = 5;
-  }
-
-  if (boardIdByte >= 32 && boardIdByte <= 50) {           // v10 Blue
-    boardVer = 10;
-  }
-  if (boardIdByte == 43 ) {           // v11 Purple
-    boardVer = 11;
-  }
- if (boardIdByte == 44 ) {           //  v10 Blue
-    boardVer = 10;
-  }
-if (boardIdByte == 46 ) {           //  v10 Blue
-    boardVer = 10;
-  }
-
-
-  
-  if ((boardVer == 2) || (boardVer == 2))  {
-    ANALOG_PIN_IN        = A0;
-    limitSwitchPin       = 05;
-    reedRelayPin         = 23;
-    greenLEDpin          = 05;
-    redLEDpin            = 05;
-    gateOn               = 16;
-    gateOff              = 27;    // moved off strapping pin
-    stepPin              = 05;
-    dirPin               = 14;    // safe pin instead of 4/5
-    enablePin            = 05;
-  }
-  if (boardVer == 3)  {
-    ANALOG_PIN_IN        = A0;
-    limitSwitchPin       = 05;
-    reedRelayPin         = 23;
-    greenLEDpin          = 05;
-    redLEDpin            = 05;
-    gateOn               = 16;
-    gateOff              = 27;
-    stepPin              = 05;
-    dirPin               = 14;
-    enablePin            = 05;
-  }
-  if ((boardIdByte) == 06) {
-    ANALOG_PIN_IN = 32;
-  }
-  
-  if ((boardVer == 4) || (boardVer == 5))  {
-    ANALOG_PIN_IN        = 36;
-    limitSwitchPin       = 19;
-    reedRelayPin         = 23;
-    greenLEDpin          = 05;
-    redLEDpin            = 05;
-    gateOn               = 16;
-    gateOff              = 27;
-    stepPin              = 16;
-    dirPin               = 14;
-    enablePin            = 17;
-  }
-
-  if (boardVer == 10)  {
-    ANALOG_PIN_IN        = 32;
-    limitSwitchPin       = 19;
-    reedRelayPin         = 18;
-    greenLEDpin          = 05;
-    redLEDpin            = 05;
-    gateOn               = 05;
-    gateOff              = 27;
-    stepPin              = 16;
-    dirPin               = 14;
-    enablePin            = 17;
-  }
-
-  if (boardVer == 11)  {
-    ANALOG_PIN_IN        = 32;
-    limitSwitchPin       = 18;
-    reedRelayPin         = 19;
-    greenLEDpin          = 33;
-    redLEDpin            = 33;
-    gateOn               = 33;
-    gateOff              = 27;
-    stepPin              = 16;
-    dirPin               = 14;
-    enablePin            = 17;
-  }
-}
