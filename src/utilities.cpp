@@ -87,7 +87,7 @@ void reportStaticPressue() {
   Serial.print("reportStaticPressue:  ");
   //client.publish ("home-assistant/blastgates", "Checking In");
   client.publish(availabilityTopic, "online");
-  client.publish(BGtopic, gateState, false);
+  client.publish(BGtopic, gateStateToString(gateState), false);
   Serial.println(sensorIn);
 }
 
@@ -156,7 +156,7 @@ void pingBroker(void* parameters) {
 
   for (;;) {
     client.publish(availabilityTopic, "online");
-    client.publish(BGtopic, gateState, false);
+    client.publish(BGtopic, gateStateToString(gateState), false);
     client.publish("Line", db, false);
     wifiDB = WiFi.RSSI();
     String stringWifiDB = String (wifiDB);

@@ -66,8 +66,8 @@ void loop()
       } else {
         trace = "ON";
         if (startTime != 0) {
-          gateState = "open";
-          client.publish(BGtopic, gateState);
+          gateState = STATE_OPEN;
+          client.publish(BGtopic, gateStateToString(gateState));
           Serial.println(BGtopic);
         }
         displayStat();
@@ -112,8 +112,8 @@ void loop()
         } else {
           trace = "ON";
           if (startTime != 0) {
-            gateState = "open";
-            client.publish(BGtopic, gateState);
+            gateState = STATE_OPEN;
+            client.publish(BGtopic, gateStateToString(gateState));
             //Serial.println(BGtopic);
           }
           displayStat();
@@ -170,8 +170,8 @@ void loop()
           displayStat();
           startTime = 0;
           digitalWrite(enablePin, HIGH);
-          gateState = "open";
-          client.publish(BGtopic, gateState, false);
+          gateState = STATE_OPEN;
+          client.publish(BGtopic, gateStateToString(gateState), false);
         }
       }
     }

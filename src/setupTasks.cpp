@@ -256,8 +256,8 @@ void setupTasks()
       trace = "Off";
       gateOpenTime = 0;
       displayStat();
-      gateState = "closed";
-      client.publish(BGtopic, gateState, false);
+      gateState = STATE_CLOSED;
+      client.publish(BGtopic, gateStateToString(gateState), false);
     }
     return;
   }
@@ -289,8 +289,8 @@ void setupTasks()
     trace = "CLOSED";
     gateOpenTime = 0;
     displayStat();
-    gateState = "closed";
-    client.publish(BGtopic, gateState, false);
+    gateState = STATE_CLOSED;
+    client.publish(BGtopic, gateStateToString(gateState), false);
   }
 
   Serial.print("Setup line 263");

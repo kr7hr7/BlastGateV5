@@ -10,6 +10,26 @@
 #include <ArduinoOTA.h>
 #include <HTTPClient.h>
 
+// gate state enumeration used for state machine logic
+enum GateState {
+    STATE_UNKNOWN = 0,
+    STATE_CLOSED,
+    STATE_CLOSING,
+    STATE_OPEN,
+    STATE_OPENING
+};
+
+// helper for converting enum value to MQTT/string representation
+inline const char *gateStateToString(GateState s) {
+    switch (s) {
+        case STATE_CLOSED: return "closed";
+        case STATE_CLOSING: return "closing";
+        case STATE_OPEN: return "open";
+        case STATE_OPENING: return "opening";
+        default: return "unknown";
+    }
+}
+
 void errorState();
 void prepNames();
 void MQTTconnect();
@@ -96,7 +116,7 @@ extern char      BGtopic[40];
 extern String    rssiTopic;
 extern String    machineIDString;
 extern String    setupID;
-extern char*     gateState;
+extern GateState  gateState;
 extern bool      rotation;  // To accomodate Rear or Front mount versions.  Mac(rear mounted) =false  Front mount(near the gate)=true
 extern String    urlFinal;
 extern bool      eepromUpdate;   // flag used to trigger EEPROM update 

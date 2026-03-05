@@ -37,7 +37,7 @@ char BGtopic[40] = "";
 String rssiTopic;
 String machineIDString;
 String setupID;
-char* gateState = nullptr;
+GateState gateState = STATE_UNKNOWN;
 bool rotation = false;
 String urlFinal;
 bool eepromUpdate = false;   // flag used to trigger EEPROM update 
