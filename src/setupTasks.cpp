@@ -172,8 +172,22 @@ void setupTasks()
 
   Serial.println("");
   Serial.println("Setup Line 185");
+  Serial.print("WiFi SSID: ");
+  Serial.println(WiFi.SSID());
+  Serial.print("WiFi IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("WiFi Gateway: ");
+  Serial.println(WiFi.gatewayIP());
+  Serial.print("WiFi Subnet: ");
+  Serial.println(WiFi.subnetMask());
+  Serial.print("WiFi MAC: ");
+  Serial.println(WiFi.macAddress());
+  Serial.print("OTA Name: ");
+  Serial.println(gateName);
   OTA();
   ArduinoOTA.handle();
+  Serial.println("OTA Ready - waiting for upload...");
+  Serial.println("If OTA not working, try: pio run --target upload --upload-port " + WiFi.localIP().toString());
 
   /*
     -------------------------------------

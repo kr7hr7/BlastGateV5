@@ -44,6 +44,8 @@ void prepNames() {
 
   // build base name (without EEPROM flag) and display OTA host
   String baseName = setupID + "_" + toolString;
+  // Replace spaces with underscores for mDNS hostname compatibility
+  baseName.replace(" ", "_");
   Serial.print("  OTA gateName = ");
   Serial.println(baseName);
 
