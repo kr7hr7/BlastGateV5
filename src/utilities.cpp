@@ -103,6 +103,7 @@ void keepMqttAlive(void* parameters) {
   for (;;) {
 
     //Serial.println("keepMqttAlive Line 72");
+    client.loop();  // CRITICAL: Must call to maintain MQTT connection
     if (client.connected()) {
       //Serial.println(" keepMqttAlive  MQTT Connected");
     }
@@ -330,6 +331,7 @@ void writeToBootLog() {
     HTTPClient http;
     http.begin(urlFinal.c_str());
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setTimeout(5000);  // 5 second timeout to prevent boot hanging
     int httpCode = http.GET();
     Serial.print("httpCode=  ");
     Serial.println (httpCode);

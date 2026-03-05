@@ -15,6 +15,7 @@ void loop()
 {
   // Serial.println ("Loop  line 3 ");
   ArduinoOTA.handle();
+  client.loop();  // CRITICAL: Must call to maintain MQTT connection and prevent blocking
 
   // ***************************************************************************
   if (gateType == "S") {

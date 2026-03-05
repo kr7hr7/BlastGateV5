@@ -15,6 +15,7 @@ void homePosition() {
   client.publish(BGtopic, gateStateToString(gateState), false);
 
   stepPosition = 0;
+  unsigned long lastYield = 0;
   while ((digitalRead(limitSwitchPin) == HIGH)) {
     dbNew="CF16";
     digitalWrite(stepPin, HIGH);
@@ -22,6 +23,13 @@ void homePosition() {
     digitalWrite(stepPin, LOW);
     delayMicroseconds(delayTime);
     stepPosition++;
+    
+    // Yield to background tasks every 100 steps (~17ms)
+    if (stepPosition % 100 == 0) {
+      ArduinoOTA.handle();
+      yield();
+    }
+    
     if (stepPosition >= (fullRunSteps + maxMissedSteps)) {
       Serial.println("Home line 22 ");
       
@@ -165,6 +173,12 @@ void openGate() {
     delayMicroseconds(delayTime);
     digitalWrite(stepPin, LOW);
     delayMicroseconds(delayTime);
+    
+    // Yield to background tasks every 100 steps (~17ms)
+    if (stepPosition % 100 == 0) {
+      ArduinoOTA.handle();
+      yield();
+    }
     //Serial.println(" OpenGate line 126");
   }
   digitalWrite(enablePin, HIGH);

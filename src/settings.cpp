@@ -5,7 +5,7 @@ void settings() {
 
   boardID               = "42";
   machineID             = "00";
-  gateDelaySeconds      =  6;
+  gateDelaySeconds      =  5;
  
   eepromUpdate          = false;
 
