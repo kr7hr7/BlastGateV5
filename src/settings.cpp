@@ -3,7 +3,7 @@
 
 void settings() {
 
-  boardID               = "42";
+  boardID               = "43";
   machineID             = "00";
   gateDelaySeconds      =  5;
  
