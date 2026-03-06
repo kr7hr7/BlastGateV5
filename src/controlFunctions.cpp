@@ -15,6 +15,10 @@ void homePosition() {
   client.publish(BGtopic, gateStateToString(gateState), false);
 
   stepPosition = 0;
+  const unsigned long homeStartTime = millis();
+  const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + maxMissedSteps);
+  // Time-based failsafe for unexpected stalls in close/homing state.
+  const unsigned long maxHomeDurationMs = (homeStepBudget * (unsigned long)(delayTime * 2 + 350) / 1000UL) + 3000UL;
   unsigned long lastYield = 0;
   while ((digitalRead(limitSwitchPin) == HIGH)) {
     dbNew="CF16";
@@ -29,9 +33,19 @@ void homePosition() {
       ArduinoOTA.handle();
       yield();
     }
+
+    if ((millis() - homeStartTime) > maxHomeDurationMs) {
+      Serial.println("Home timeout waiting for limit switch");
+      gateState = STATE_UNKNOWN;
+      client.publish(BGtopic, gateStateToString(gateState), false);
+      eCode = 5; // Error code 5: close/homing timeout
+      errorState();
+    }
     
     if (stepPosition >= (fullRunSteps + maxMissedSteps)) {
       Serial.println("Home line 22 ");
+      gateState = STATE_UNKNOWN;
+      client.publish(BGtopic, gateStateToString(gateState), false);
       
       eCode=1; //                                         Error code 1
       errorState();

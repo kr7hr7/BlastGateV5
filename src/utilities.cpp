@@ -257,6 +257,9 @@ void displayStat() {
 void errorState() {
   //delay(3000);
   Serial.println("errorState line 230");
+  gateState = STATE_UNKNOWN;
+  trace = "Error";
+  client.publish(BGtopic, gateStateToString(gateState), false);
   OTA();
   Serial.println(" errorState Line232 ");
   //Serial.print(" LimitSwitch = ");
@@ -284,6 +287,7 @@ void errorState() {
        Code 1 = excessive missed steps: gate may be blocked
        Code 2 = Board assignment does not match EEPROM
        Code 3 = Gate assignment error:  Check settings
+       Code 5 = close/homing timeout waiting for limit switch
 */
   Serial.println("errorState Line 257");
 }
