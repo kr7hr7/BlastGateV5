@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+
+# Keep firmware version date in sync on every commit.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/update_ver_date.ps1"

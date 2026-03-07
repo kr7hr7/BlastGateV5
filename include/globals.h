@@ -16,7 +16,10 @@ enum GateState {
     STATE_CLOSED,
     STATE_CLOSING,
     STATE_OPEN,
-    STATE_OPENING
+    STATE_OPENING,
+    STATE_ERROR_1,
+    STATE_ERROR_2,
+    STATE_ERROR_3
 };
 
 // helper for converting enum value to MQTT/string representation
@@ -26,6 +29,9 @@ inline const char *gateStateToString(GateState s) {
         case STATE_CLOSING: return "closing";
         case STATE_OPEN: return "open";
         case STATE_OPENING: return "opening";
+        case STATE_ERROR_1: return "error_1";
+        case STATE_ERROR_2: return "error_2";
+        case STATE_ERROR_3: return "error_3";
         default: return "unknown";
     }
 }
@@ -40,6 +46,7 @@ void pingBroker(void* parameters);
 void keepWiFiAlive(void* parameters);
 void printStat();
 void displayStat();
+bool publishGateState(bool force = false);
 void writeToBootLog();
 //void write_to_google_sheet();
 void reconnect();

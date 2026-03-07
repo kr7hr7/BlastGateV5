@@ -12,7 +12,7 @@ void homePosition() {
   trace = "Closing";
   displayStat();
   gateState = STATE_CLOSING;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
 
   stepPosition = 0;
   const unsigned long homeStartTime = millis();
@@ -37,7 +37,7 @@ void homePosition() {
     if ((millis() - homeStartTime) > maxHomeDurationMs) {
       Serial.println("Home timeout waiting for limit switch");
       gateState = STATE_UNKNOWN;
-      client.publish(BGtopic, gateStateToString(gateState), false);
+      publishGateState();
       eCode = 5; // Error code 5: close/homing timeout
       errorState();
     }
@@ -45,7 +45,7 @@ void homePosition() {
     if (stepPosition >= (fullRunSteps + maxMissedSteps)) {
       Serial.println("Home line 22 ");
       gateState = STATE_UNKNOWN;
-      client.publish(BGtopic, gateStateToString(gateState), false);
+      publishGateState();
       
       eCode=1; //                                         Error code 1
       errorState();
@@ -53,7 +53,7 @@ void homePosition() {
   }
 
   gateState = STATE_CLOSED;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   digitalWrite(enablePin, HIGH);
   stepPosition = 0;
   gateCloseState = true;
@@ -73,7 +73,7 @@ void closeGate() {
   Serial.println(BGtopic);
   moveState = true;
   gateState = STATE_CLOSING;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
 
   if (startTime == 0) {
     startTime = millis();
@@ -161,13 +161,13 @@ void openGate() {
   digitalWrite(reedRelayPin, HIGH);
   digitalWrite(gateOn, HIGH);
   gateState = STATE_OPENING;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   //Serial.println(BGtopic);
   //Serial.println(" OpenGate line 102");
   homePosition();
   //Serial.println(" OpenGate line 104");
   gateState = STATE_OPENING;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   //Serial.println(BGtopic);
 
   display.clearDisplay();
@@ -203,7 +203,7 @@ void openGate() {
   moveState = false;
   digitalWrite(enablePin, HIGH);
   gateState = STATE_OPEN;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   //Serial.println(" OpenGate line 137");
 }
 
@@ -222,7 +222,7 @@ void toolOn() {
   trace = "ON";
   displayStat();
   gateState = STATE_OPEN;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   //Serial.println(" toolON Line # 17");
 }
 
@@ -242,7 +242,7 @@ void toolOff() {
   //Serial.println(BGtopic);
   gateOpenState = false;
   gateState = STATE_CLOSED;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   digitalWrite(reedRelayPin, LOW);
   digitalWrite(gateOn, LOW);
   trace = "OFF";
@@ -255,7 +255,7 @@ void manualGateClose() {
   const char* mqttTopic = BGtopic;
   gateOpenState = false;
   gateState = STATE_CLOSED;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   digitalWrite(reedRelayPin, LOW);
   digitalWrite(gateOn, LOW);
   trace = "Off";
@@ -275,7 +275,7 @@ void manualGateOpen() {
   trace = "Open";
   displayStat();
   gateState = STATE_OPEN;
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   //Serial.println(" manual gate open 218");
 }
 

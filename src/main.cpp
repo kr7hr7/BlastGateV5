@@ -68,7 +68,7 @@ void loop()
         trace = "ON";
         if (startTime != 0) {
           gateState = STATE_OPEN;
-          client.publish(BGtopic, gateStateToString(gateState));
+          publishGateState();
           Serial.println(BGtopic);
         }
         displayStat();
@@ -114,7 +114,7 @@ void loop()
           trace = "ON";
           if (startTime != 0) {
             gateState = STATE_OPEN;
-            client.publish(BGtopic, gateStateToString(gateState));
+            publishGateState();
             //Serial.println(BGtopic);
           }
           displayStat();
@@ -172,7 +172,7 @@ void loop()
           startTime = 0;
           digitalWrite(enablePin, HIGH);
           gateState = STATE_OPEN;
-          client.publish(BGtopic, gateStateToString(gateState), false);
+          publishGateState();
         }
       }
     }

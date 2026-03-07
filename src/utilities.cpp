@@ -1,6 +1,28 @@
 #include "utilities.h"
 #include "globals.h"
 #include <ESPmDNS.h>
+
+// Publish gate state only when it changes unless force=true.
+bool publishGateState(bool force) {
+  static GateState lastPublishedState = STATE_UNKNOWN;
+  static bool hasPublished = false;
+
+  if (!client.connected()) {
+    return false;
+  }
+
+  if (force || !hasPublished || gateState != lastPublishedState) {
+    bool ok = client.publish(BGtopic, gateStateToString(gateState), false);
+    if (ok) {
+      lastPublishedState = gateState;
+      hasPublished = true;
+    }
+    return ok;
+  }
+
+  return true;
+}
+
 //----------------------------------------
 void prepNames() {
 
@@ -90,7 +112,7 @@ void reportStaticPressue() {
   Serial.print("reportStaticPressue:  ");
   //client.publish ("home-assistant/blastgates", "Checking In");
   client.publish(availabilityTopic, "online");
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   Serial.println(sensorIn);
 }
 
@@ -114,6 +136,7 @@ void keepMqttAlive(void* parameters) {
 
       if (WiFi.status() == WL_CONNECTED) {
         Serial.println("MQTT Re-Connected");
+        publishGateState(true);
         displayStat();
       }
     }
@@ -131,6 +154,7 @@ void MQTTconnect() {
   if (client.connected()) {
     Serial.println("MQTT Connected!");
     client.publish(availabilityTopic, "online");
+    publishGateState(true);
   }
 
   if (!client.connected()) {
@@ -160,7 +184,7 @@ void pingBroker(void* parameters) {
 
   for (;;) {
     client.publish(availabilityTopic, "online");
-    client.publish(BGtopic, gateStateToString(gateState), false);
+    publishGateState();
     client.publish("Line", db, false);
     wifiDB = WiFi.RSSI();
     String stringWifiDB = String (wifiDB);
@@ -257,9 +281,17 @@ void displayStat() {
 void errorState() {
   //delay(3000);
   Serial.println("errorState line 230");
-  gateState = STATE_UNKNOWN;
+  if (eCode == 1) {
+    gateState = STATE_ERROR_1;
+  } else if (eCode == 2) {
+    gateState = STATE_ERROR_2;
+  } else if (eCode == 3) {
+    gateState = STATE_ERROR_3;
+  } else {
+    gateState = STATE_UNKNOWN;
+  }
   trace = "Error";
-  client.publish(BGtopic, gateStateToString(gateState), false);
+  publishGateState();
   OTA();
   Serial.println(" errorState Line232 ");
   //Serial.print(" LimitSwitch = ");
