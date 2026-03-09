@@ -188,7 +188,9 @@ void loop()
 
       dbNew = "L166";
       const bool gateIndicatesOpen = (gateOpenState == true) || (gateState == STATE_OPEN) || (gateState == STATE_OPENING);
-      if (gateIndicatesOpen && (millis() - belowTriggerStart >= lowSignalCloseDelayMs)) {
+      // If software state drifts, rely on limit switch to detect "not closed" and still close.
+      const bool gatePhysicallyNotClosed = (gateCloseState == false);
+      if ((gateIndicatesOpen || gatePhysicallyNotClosed) && (millis() - belowTriggerStart >= lowSignalCloseDelayMs)) {
         closeGate();
       }
 

@@ -283,6 +283,7 @@ void setupTasks()
   Serial.println("Setup  line line 269");
 
   sensorIn = (analogRead(ANALOG_PIN_IN));
+  checkSwitchState();
 
   Serial.println("Setup  line line 245");
   if (sensorIn > (trigger + triggerDelta))
@@ -299,6 +300,16 @@ void setupTasks()
 
     Serial.println("Setup line 256");
 
+    homePosition();
+    trace = "CLOSED";
+    gateOpenTime = 0;
+    displayStat();
+    gateState = STATE_CLOSED;
+    publishGateState();
+  }
+  if ((sensorIn >= trigger) && (sensorIn <= (trigger + triggerDelta)) && (gateCloseState == false))
+  {
+    // Mid-band sensor noise on boot should not leave a physically open gate open.
     homePosition();
     trace = "CLOSED";
     gateOpenTime = 0;
