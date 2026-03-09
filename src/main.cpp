@@ -144,10 +144,14 @@ void loop()
   // ***************************************************************************
   if ((gateType == "A") || (gateType == "B") || (gateType == "C") || (gateType == "D")) {
 //   Serial.println ("Loop  line 132 ");
+    static unsigned long belowTriggerStart = 0;
+    const unsigned long lowSignalCloseDelayMs = 1000;
+
     checkSwitchState();
     sensorIn = (analogRead(ANALOG_PIN_IN));
     // Serial.println (sensorIn);
     if (sensorIn > (trigger + triggerDelta)) {
+      belowTriggerStart = 0;
       delay(200);
       sensorIn = (analogRead(ANALOG_PIN_IN));
       if ((sensorIn > (trigger + triggerDelta))) {
@@ -178,12 +182,19 @@ void loop()
     }
 
     if (sensorIn < trigger) {
+      if (belowTriggerStart == 0) {
+        belowTriggerStart = millis();
+      }
+
       dbNew = "L166";
-      if (gateOpenState == true) {
+      const bool gateIndicatesOpen = (gateOpenState == true) || (gateState == STATE_OPEN) || (gateState == STATE_OPENING);
+      if (gateIndicatesOpen && (millis() - belowTriggerStart >= lowSignalCloseDelayMs)) {
         closeGate();
       }
 
       delay(holdTime);
+    } else {
+      belowTriggerStart = 0;
     }
     ArduinoOTA.handle();
   }

@@ -1,5 +1,6 @@
 #!/usr/bin/env sh
 set -eu
 
-# Keep firmware version date in sync on every commit.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "scripts/update_ver_date.ps1"
+# Keep firmware version date in sync on every commit (MM_DD_YYYY).
+repo_root="$(git rev-parse --show-toplevel)"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$repo_root/scripts/update_ver_date.ps1"

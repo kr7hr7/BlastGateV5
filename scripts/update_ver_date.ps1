@@ -11,9 +11,9 @@ if (-not (Test-Path $filePath)) {
 }
 
 $content = Get-Content -Path $filePath -Raw
-$today = Get-Date -Format "MMddyyyy"
-$pattern = '(?m)^const\s+char\*\s+ver\s*=\s*"\d{8}";.*$'
-$replacement = "const char* ver = `"$today`";  // MMDDYYYY"
+$today = Get-Date -Format "MM_dd_yyyy"
+$pattern = '(?m)^const\s+char\*\s+ver\s*=\s*"\d{2}_\d{2}_\d{4}";.*$'
+$replacement = "const char* ver = `"$today`";  // MM_DD_YYYY"
 
 if (-not [regex]::IsMatch($content, $pattern)) {
     Write-Error "Could not find expected ver assignment pattern in $TargetFile"
