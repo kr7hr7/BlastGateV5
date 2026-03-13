@@ -8,6 +8,7 @@ Selection order:
 4) Otherwise fail with a clear list of candidates.
 """
 import socket
+import sys
 import time
 
 try:
@@ -60,6 +61,29 @@ def discover_ota_devices(timeout=3):
     
     return listener.devices
 
+
+def prompt_for_device_selection(devices):
+    """Prompt user to choose an OTA target or abort upload."""
+    if not sys.stdin.isatty():
+        return None
+
+    print("\nSelect upload target:")
+    print("  0. Abort upload")
+    for i, device in enumerate(devices, 1):
+        print(f"  {i}. {device['name']:<30} ({device['ip']})")
+
+    while True:
+        choice = input("\nEnter number (or 'q' to abort): ").strip().lower()
+        if choice in ("q", "quit", "x", "abort"):
+            return -1
+        if choice == "0":
+            return -1
+        if choice.isdigit():
+            idx = int(choice)
+            if 1 <= idx <= len(devices):
+                return idx - 1
+        print("Invalid selection. Enter 1-{} or 0/q to abort.".format(len(devices)))
+
 def select_ota_device(*args, **kwargs):
     """Deterministic non-interactive device selection for OTA uploads."""
     devices = discover_ota_devices()
@@ -82,6 +106,19 @@ def select_ota_device(*args, **kwargs):
                 print(f"Using configured OTA device '{device['name']}' at {device['ip']}")
                 return
 
+    # In interactive mode, always offer explicit selection/abort, even for one device.
+    if sys.stdin.isatty():
+        selected_index = prompt_for_device_selection(devices)
+        if selected_index == -1:
+            print("Upload aborted by user.")
+            env.Exit(1)
+            return
+        if selected_index is not None:
+            selected = devices[selected_index]
+            env.Replace(UPLOAD_PORT=selected["ip"])
+            print(f"Using selected OTA device '{selected['name']}' at {selected['ip']}")
+            return
+
     if len(devices) == 1:
         selected = devices[0]
         env.Replace(UPLOAD_PORT=selected["ip"])
@@ -92,7 +129,8 @@ def select_ota_device(*args, **kwargs):
     for i, device in enumerate(devices, 1):
         print(f"  {i}. {device['name']:<30} ({device['ip']})")
 
-    print("\nSet one of these in platformio.ini for env:esp32dev-ota:")
+    print("\nNo interactive terminal available.")
+    print("Set one of these in platformio.ini for env:esp32dev-ota:")
     print("  upload_port = <device ip>")
     print("or")
     print("  custom_ota_device_name = <exact mdns hostname>")

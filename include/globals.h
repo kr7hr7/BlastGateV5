@@ -46,6 +46,8 @@ void pingBroker(void* parameters);
 void keepWiFiAlive(void* parameters);
 void printStat();
 void displayStat();
+void updateSensorInOnOled(bool forceRedraw = false, bool pushDisplay = true);
+void redrawSensorInOnOled(bool pushDisplay = true);
 bool publishGateState(bool force = false);
 void writeToBootLog();
 //void write_to_google_sheet();

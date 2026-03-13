@@ -279,6 +279,8 @@ void displayStat() {
   //display.setCursor(0, 53);
   display.print(WiFi.localIP());
   display.setTextWrap(true);
+  // Restore cached sensor overlay after full-screen clear without changing its value.
+  redrawSensorInOnOled(false);
   display.display();
 }
 
