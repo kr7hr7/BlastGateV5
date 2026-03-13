@@ -42,7 +42,7 @@ bool rotation = false;
 String urlFinal;
 bool eepromUpdate = false;   // flag used to trigger EEPROM update 
 char cycleTopic[15] = "";
-const char* ver = "03_08_2026";  // MM_DD_YYYY
+const char* ver = "03_13_2026";  // MM_DD_YYYY
 
 // Working Variables
 int sensorIn = 0;

@@ -238,7 +238,6 @@ void printStat() {
   //Serial.print(stepPosition);
   Serial.print("   ");
   Serial.print(WiFi.localIP());
-  ;
   Serial.print("   ");
   Serial.print(millis());
   Serial.print("   ");
@@ -268,11 +267,18 @@ void displayStat() {
   display.setCursor(120, 33);
   display.print(gateType);
   display.setCursor(0, 43);
-  display.print(toolString);
-  display.setCursor(110, 53);
-  display.print(gateDelaySeconds);
+  display.setTextWrap(false);
+  String toolLine = toolString;
+  if (toolLine.length() > 21) {
+    toolLine = toolLine.substring(0, 21);
+  }
+  display.print(toolLine);
+  // Keep right-bottom area free for sensorIn overlay in main loop.
   display.setCursor(0, 53);
+  //display.print(gateDelaySeconds);
+  //display.setCursor(0, 53);
   display.print(WiFi.localIP());
+  display.setTextWrap(true);
   display.display();
 }
 

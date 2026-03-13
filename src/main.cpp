@@ -6,6 +6,45 @@
 // put function declarations here:
 int myFunction(int, int);
 
+// Non-blocking OLED refresh for sensor input once per second.
+static unsigned long lastSensorValueUpdateMs = 0;
+static unsigned long lastSensorFieldPaintMs = 0;
+static int sensorInDisplayValue = 0;
+
+static void updateSensorInOnOled() {
+  const int fieldX = 98;
+  const int fieldY = 50;
+  const int fieldW = 30;
+  const int charW = 6; // default font width at text size 1 (5px + 1px spacing)
+
+  const unsigned long now = millis();
+  // Update the displayed value once per second.
+  if (now - lastSensorValueUpdateMs >= 1000UL) {
+    lastSensorValueUpdateMs = now;
+    sensorInDisplayValue = sensorIn;
+  }
+
+  // Repaint field faster so other screen draws do not leave it overwritten.
+  if (now - lastSensorFieldPaintMs < 200UL) {
+    return;
+  }
+
+  lastSensorFieldPaintMs = now;
+  String sensorText = String(sensorInDisplayValue);
+  int textX = fieldX + fieldW - (sensorText.length() * charW);
+  if (textX < fieldX) {
+    textX = fieldX;
+  }
+
+  // Clear only the sensor field area before redraw to avoid stale digits.
+  display.fillRect(fieldX, fieldY, fieldW, 8, BLACK);
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(textX, fieldY);
+  display.print(sensorText);
+  display.display();
+}
+
 void setup()
 {
     setupTasks();
@@ -16,6 +55,7 @@ void loop()
   // Serial.println ("Loop  line 3 ");
   ArduinoOTA.handle();
   client.loop();  // CRITICAL: Must call to maintain MQTT connection and prevent blocking
+  updateSensorInOnOled();
 
   // ***************************************************************************
   if (gateType == "S") {
@@ -149,7 +189,7 @@ void loop()
 
     checkSwitchState();
     sensorIn = (analogRead(ANALOG_PIN_IN));
-    // Serial.println (sensorIn);
+    Serial.println (sensorIn);
     if (sensorIn > (trigger + triggerDelta)) {
       belowTriggerStart = 0;
       delay(200);
