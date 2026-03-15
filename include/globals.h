@@ -48,6 +48,8 @@ void printStat();
 void displayStat();
 void updateSensorInOnOled(bool forceRedraw = false, bool pushDisplay = true);
 void redrawSensorInOnOled(bool pushDisplay = true);
+void servoControllerSetup();
+void servoControllerLoop();
 bool publishGateState(bool force = false);
 void writeToBootLog();
 //void write_to_google_sheet();
@@ -107,6 +109,10 @@ extern byte      linkPin ;  // use pin 33 for ver 1-3   Use pin 13 for v4 plus
 extern byte      stepPin ;  // 16 for combo boards   04 for earlier versions
 extern byte      dirPin  ;  // avoid GPIO4/5; default now 14
 extern byte      enablePin;  // 17 for combo boards  16 for early versions
+extern int       switchPinA;
+extern int       servoPinA;
+extern int       switchPinB;
+extern int       servoPinB;
 
 //------- MQTTconnect variables-------------------
 extern int       toolInt;
@@ -116,7 +122,7 @@ extern char      machineIDChar[3];
 extern char      mID[4];  // The 3 digit machine Id   i.e. "M21"
 extern String    mIDstring;
 extern char      gateName[51];
-extern char*     BGstatus;
+extern const char* BGstatus;
 extern String    gateNameString;
 extern String    gateTypeString;
 extern int       keepAlive;
@@ -147,8 +153,8 @@ extern String        verString;
 extern String        machineIDstring;
 extern int           fullRunSteps;
 extern byte          eCode;
-extern char*         db;
-extern char*         dbNew;
+extern const char*   db;
+extern const char*   dbNew;
 
 // Parameters
 extern const int     waitTime;
@@ -200,6 +206,11 @@ extern String        boardID;
 extern int           intboardID;
 extern String        machineID;
 extern int           gateDelaySeconds;
+extern int           bDoubleTriggerMs;
+extern int           openA;
+extern int           openB;
+extern int           closedA;
+extern int           closedB;
 extern String        gateType;
 
 extern const char*   mqtt_server;

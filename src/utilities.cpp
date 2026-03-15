@@ -64,18 +64,32 @@ void prepNames() {
   Serial.print("  Tool Name= ");
   Serial.print(toolString);
 
-  // build base name (without EEPROM flag) and display OTA host
+  // Build OTA hostname candidate and sanitize to valid mDNS characters.
+  // mDNS host labels should contain only letters, digits, or hyphen.
   String baseName = setupID + "_" + toolString;
-  // Replace spaces with underscores for mDNS hostname compatibility
-  baseName.replace(" ", "_");
+  String safeName = "";
+  for (size_t i = 0; i < baseName.length(); i++) {
+    char c = baseName[i];
+    bool isLower = (c >= 'a' && c <= 'z');
+    bool isUpper = (c >= 'A' && c <= 'Z');
+    bool isDigit = (c >= '0' && c <= '9');
+    if (isLower || isUpper || isDigit || c == '-') {
+      safeName += c;
+    } else {
+      safeName += '-';
+    }
+  }
+  if (safeName.length() == 0) {
+    safeName = "blastgate";
+  }
   Serial.print("  OTA gateName = ");
-  Serial.println(baseName);
+  Serial.println(safeName);
 
   // append EEPROM flag if present
   if (EEPROM.read(3) == 200) {
-    baseName += "_F_";
+    safeName += "-F";
   }
-  gateNameString = baseName;
+  gateNameString = safeName;
   // copy final string out-of-band
   gateNameString.toCharArray(gateName, sizeof(gateName));
 
@@ -437,9 +451,14 @@ void OTA() {
     });
     Serial.println("OTA line 368");
     //Serial.println (gateName);
+    ArduinoOTA.setPort(3232);
     ArduinoOTA.setHostname(gateName);
-    MDNS.begin(gateName);
-    MDNS.addService("http", "tcp", 8266);
+    if (!MDNS.begin(gateName)) {
+      Serial.println("mDNS start failed");
+    } else {
+      // Required for discover_ota.py which scans _arduino._tcp.local.
+      MDNS.addService("arduino", "tcp", 3232);
+    }
     ArduinoOTA.begin();
     otaOn = true;
   }

@@ -3,9 +3,14 @@
 
 void settings() {
 
-  boardID               = "49";
-  machineID             = "00";
-  gateDelaySeconds      =  4;
+  boardID               = "48";
+  machineID             = "25";
+  gateDelaySeconds      = 15;
+  bDoubleTriggerMs      = 750;
+  openA                 = 120;
+  openB                 = 120;
+  closedA               = 35;
+  closedB               = 40;
  
   eepromUpdate          = false;
 

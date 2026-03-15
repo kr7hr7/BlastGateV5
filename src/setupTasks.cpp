@@ -32,7 +32,7 @@ void setupTasks()
   boardconfiguration();
   prepNames();
   dirPin = 4;
-  trace = "Board Setup";
+  trace = "Setup";
   displayStat();
 
   pinMode(ANALOG_PIN_IN, INPUT);
@@ -49,13 +49,12 @@ void setupTasks()
   digitalWrite(greenLEDpin, HIGH);
   digitalWrite(redLEDpin, HIGH);
   digitalWrite(reedRelayPin, LOW);
-  digitalWrite(enablePin, HIGH);
-  digitalWrite(linkPin, HIGH);
+  digitalWrite(enablePin, HIGH); 
   digitalWrite(gateOn, LOW);
   digitalWrite(gateOff, LOW);
 
-  trace = "Booting";
-  displayStat();
+  //trace = "Booting";
+  //displayStat();
 
   closeDelayTime = 1000 * gateDelaySeconds;
   client.setKeepAlive(keepAlive);
@@ -205,7 +204,7 @@ void setupTasks()
   Serial.println(gateType);
   Serial.println("");
 
-  if ((gateType != "A") && (gateType != "B") && (gateType != "C") && (gateType != "D") && (gateType != "S") && (gateType != "P") && (gateType != "M"))
+  if ((gateType != "A") && (gateType != "B") && (gateType != "C") && (gateType != "D") && (gateType != "S") && (gateType != "X") && (gateType != "M"))
   {
     Serial.println("");
     Serial.print("Gate Type           = ");
@@ -251,6 +250,14 @@ void setupTasks()
     return;
   }
   Serial.println("Setup  line line 232");
+
+//*****************************************
+  if (gateType =="X") {
+  pinMode(switchPinA, INPUT_PULLUP);
+  pinMode(switchPinB, INPUT_PULLUP);
+  pinMode(servoPinA, OUTPUT);
+  pinMode(servoPinB, OUTPUT); 
+}
 
   //*****************************************
   if (gateType == "M")

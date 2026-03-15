@@ -93,6 +93,7 @@ void updateSensorInOnOled(bool forceRedraw, bool pushDisplay) {
 void setup()
 {
     setupTasks();
+  servoControllerSetup();
 }
 
 void loop()
@@ -224,6 +225,11 @@ void loop()
     //}
     //Serial.println(sensorIn);
     //delay(holdTime);
+  }
+
+
+  if (gateType == "X") {
+    servoControllerLoop();
   }
 
   // ***************************************************************************

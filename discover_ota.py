@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""OTA device discovery script for PlatformIO.
+"""Upload target selection for PlatformIO OTA uploads.
 
-Selection order:
-1) Use configured UPLOAD_PORT if present.
-2) Discover mDNS Arduino OTA devices and auto-select if exactly one.
-3) If multiple are found, allow selection by OTA_DEVICE_NAME env var.
-4) Otherwise fail with a clear list of candidates.
+Interactive menu shown on every OTA upload:
+  0. Abort
+  1. USB (<port>)
+  2+. Discovered OTA devices on the local network
 """
+
+import os
 import socket
+import subprocess
 import sys
 import time
 
@@ -18,126 +20,210 @@ except ImportError:
     Zeroconf = None
     ServiceListener = object
 
+
 class OTADeviceListener(ServiceListener):
     def __init__(self):
         self.devices = []
-    
+
     def add_service(self, zc, type_, name):
         info = zc.get_service_info(type_, name)
-        if info:
+        if info and info.addresses:
             address = socket.inet_ntoa(info.addresses[0])
-            hostname = name.replace('._arduino._tcp.local.', '')
+            hostname = name.replace("._arduino._tcp.local.", "")
             self.devices.append({
-                'name': hostname,
-                'ip': address,
-                'port': info.port
+                "name": hostname,
+                "ip": address,
+                "port": info.port,
             })
-    
+
     def update_service(self, zc, type_, name):
         pass
-    
+
     def remove_service(self, zc, type_, name):
         pass
 
+
 def discover_ota_devices(timeout=3):
-    """Discover OTA devices on the network"""
+    """Discover Arduino OTA devices on the LAN via mDNS."""
     print("\n" + "=" * 60)
     print("Scanning network for OTA devices...")
     print("=" * 60)
 
     if Zeroconf is None:
-        print("zeroconf package is not installed in PlatformIO Python environment")
-        print("Install with: pio pkg install --global --tool zeroconf")
+        print("zeroconf package not installed.")
+        print("Install: pio pkg install --global --tool zeroconf")
         return []
-    
+
     zeroconf = Zeroconf()
     listener = OTADeviceListener()
     browser = ServiceBrowser(zeroconf, "_arduino._tcp.local.", listener)
-    
     time.sleep(timeout)
-    
     browser.cancel()
     zeroconf.close()
-    
     return listener.devices
 
 
-def prompt_for_device_selection(devices):
-    """Prompt user to choose an OTA target or abort upload."""
-    if not sys.stdin.isatty():
-        return None
+def _candidate_esptool_paths():
+    """Yield likely esptool.py locations from PlatformIO package dirs."""
+    package_names = ("tool-esptoolpy", "tool-esptool-unofficial", "tool-esptool")
+
+    # Preferred: ask PlatformIO for package locations.
+    try:
+        pio_platform = env.PioPlatform()
+        for pkg in package_names:
+            pkg_dir = pio_platform.get_package_dir(pkg)
+            if pkg_dir:
+                yield os.path.join(pkg_dir, "esptool.py")
+    except Exception:
+        pass
+
+    # Fallback: check common PlatformIO home dirs.
+    base_dirs = []
+    try:
+        core_dir = env.get("PROJECT_CORE_DIR")
+        if core_dir:
+            base_dirs.append(str(core_dir))
+    except Exception:
+        pass
+    try:
+        pio_home = env.subst("$PIOHOME_DIR")
+        if pio_home:
+            base_dirs.append(str(pio_home))
+    except Exception:
+        pass
+    base_dirs.append(os.path.join(os.path.expanduser("~"), ".platformio"))
+
+    for base in base_dirs:
+        for pkg in package_names:
+            yield os.path.join(base, "packages", pkg, "esptool.py")
+
+
+def _find_esptool_cmd():
+    """Return command prefix for invoking esptool via PlatformIO's Python."""
+    python_exe = env.subst("$PYTHONEXE") if env.get("PYTHONEXE") else sys.executable
+
+    for candidate in _candidate_esptool_paths():
+        if os.path.exists(candidate):
+            return [python_exe, candidate]
+
+    # Last resort fallback.
+    return [python_exe, "-m", "esptool"]
+
+
+def _run_usb_upload(usb_port):
+    """Flash firmware.bin to app partition via USB/esptool.
+
+    Returns process exit code (0 = success).
+    """
+    build_dir = env.subst("$BUILD_DIR")
+    firmware = os.path.join(build_dir, "firmware.bin")
+    if not os.path.exists(firmware):
+        print(f"ERROR: Firmware binary not found: {firmware}")
+        return 1
+
+    cmd = _find_esptool_cmd() + [
+        "--chip",
+        "esp32",
+        "--port",
+        usb_port,
+        "--baud",
+        "921600",
+        "--before",
+        "default_reset",
+        "--after",
+        "hard_reset",
+        "write_flash",
+        "-z",
+        "--flash_mode",
+        "dio",
+        "--flash_freq",
+        "80m",
+        "--flash_size",
+        "4MB",
+        "0x10000",
+        firmware,
+    ]
+
+    print(f"\nUploading firmware via USB -> {usb_port}")
+    result = subprocess.run(cmd)
+    return result.returncode
+
+
+def _prompt_combined_menu(usb_port, ota_devices):
+    """Show numbered menu with USB first and OTA devices after.
+
+    Returns selected option dict, None to abort, or "__EOF__" when input stream
+    cannot be read interactively.
+    """
+    options = [{"type": "usb", "label": f"USB ({usb_port})"}]
+    for device in ota_devices:
+        options.append(
+            {
+                "type": "ota",
+                "label": f"{device['name']} ({device['ip']})",
+                "device": device,
+            }
+        )
 
     print("\nSelect upload target:")
     print("  0. Abort upload")
-    for i, device in enumerate(devices, 1):
-        print(f"  {i}. {device['name']:<30} ({device['ip']})")
+    for i, option in enumerate(options, 1):
+        print(f"  {i}. {option['label']}")
 
     while True:
-        choice = input("\nEnter number (or 'q' to abort): ").strip().lower()
-        if choice in ("q", "quit", "x", "abort"):
-            return -1
-        if choice == "0":
-            return -1
-        if choice.isdigit():
-            idx = int(choice)
-            if 1 <= idx <= len(devices):
-                return idx - 1
-        print("Invalid selection. Enter 1-{} or 0/q to abort.".format(len(devices)))
+        try:
+            raw = input("\nEnter number (or 'q' to abort): ").strip().lower()
+        except EOFError:
+            return "__EOF__"
 
-def select_ota_device(*args, **kwargs):
-    """Deterministic non-interactive device selection for OTA uploads."""
-    devices = discover_ota_devices()
+        if raw in ("q", "quit", "x", "abort", "0"):
+            return None
+        if raw.isdigit():
+            idx = int(raw)
+            if 1 <= idx <= len(options):
+                return options[idx - 1]
+        print(f"Invalid selection. Enter 1-{len(options)} or 0/q to abort.")
 
-    if not devices:
-        print("\nNo OTA devices found on network")
-        print("Make sure device is powered on and connected to WiFi")
-        print("Or set upload_port in platformio.ini for env:esp32dev-ota")
+
+def select_upload_target(*args, **kwargs):
+    """PlatformIO upload pre-action: choose USB or OTA target."""
+    try:
+        usb_port = env.GetProjectOption("custom_usb_port", "COM3").strip()
+    except Exception:
+        usb_port = "COM3"
+
+    ota_devices = discover_ota_devices()
+    ota_devices.sort(key=lambda item: item["name"])
+
+    if not sys.stdin.isatty():
+        print("\nInteractive selection is required, but no interactive terminal is available.")
+        print("Upload aborted. Re-run from an interactive terminal/task to choose USB/OTA or Abort.")
         env.Exit(1)
         return
 
-    # Sort by hostname for consistent ordering
-    devices.sort(key=lambda x: x["name"])
-
-    configured_name = env.GetProjectOption("custom_ota_device_name", "").strip()
-    if configured_name:
-        for device in devices:
-            if device["name"].lower() == configured_name.lower():
-                env.Replace(UPLOAD_PORT=device["ip"])
-                print(f"Using configured OTA device '{device['name']}' at {device['ip']}")
-                return
-
-    # In interactive mode, always offer explicit selection/abort, even for one device.
-    if sys.stdin.isatty():
-        selected_index = prompt_for_device_selection(devices)
-        if selected_index == -1:
-            print("Upload aborted by user.")
-            env.Exit(1)
-            return
-        if selected_index is not None:
-            selected = devices[selected_index]
-            env.Replace(UPLOAD_PORT=selected["ip"])
-            print(f"Using selected OTA device '{selected['name']}' at {selected['ip']}")
-            return
-
-    if len(devices) == 1:
-        selected = devices[0]
-        env.Replace(UPLOAD_PORT=selected["ip"])
-        print(f"Using discovered OTA device '{selected['name']}' at {selected['ip']}")
+    selected = _prompt_combined_menu(usb_port, ota_devices)
+    if selected == "__EOF__" or selected is None:
+        print("Upload aborted by user.")
+        env.Exit(1)
         return
 
-    print(f"\nFound {len(devices)} OTA devices:\n")
-    for i, device in enumerate(devices, 1):
-        print(f"  {i}. {device['name']:<30} ({device['ip']})")
+    if selected["type"] == "usb":
+        rc = _run_usb_upload(usb_port)
+        env.Exit(rc)
+        return
 
-    print("\nNo interactive terminal available.")
-    print("Set one of these in platformio.ini for env:esp32dev-ota:")
-    print("  upload_port = <device ip>")
-    print("or")
-    print("  custom_ota_device_name = <exact mdns hostname>")
-    env.Exit(1)
+    device = selected["device"]
+    env.Replace(UPLOAD_PORT=device["ip"])
+    print(f"Using OTA device '{device['name']}' at {device['ip']}")
+    return
 
-# Register with PlatformIO
+
 Import("env")
-# Only run discovery if upload_port not already set
-if not env.get("UPLOAD_PORT"):
-    env.AddPreAction("upload", select_ota_device)
+
+upload_protocol = str(env.get("UPLOAD_PROTOCOL", "")).strip().lower()
+upload_port_value = str(env.get("UPLOAD_PORT", "")).strip()
+placeholder_ports = {"", "0.0.0.0"}
+
+# Activate only for OTA env that uses placeholder upload port.
+if upload_protocol == "espota" and upload_port_value in placeholder_ports:
+    env.AddPreAction("upload", select_upload_target)

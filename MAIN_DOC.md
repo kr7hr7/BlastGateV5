@@ -1,5 +1,7 @@
 **Main.cpp Overview**
 
+- Global variable reference: [GLOBALS_DOC.md](GLOBALS_DOC.md)
+
 - **File:** [src/main.cpp](src/main.cpp)
 - **Purpose:** Initializes hardware, network (Wi‑Fi/MQTT), display and OTA, configures pins, and performs a single startup sensor check that may open or home the gate. The `loop()` is intentionally empty; main behaviour is event driven and uses FreeRTOS tasks.
 
