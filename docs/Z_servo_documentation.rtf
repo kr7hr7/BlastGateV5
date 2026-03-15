@@ -1,0 +1,182 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\f0\fs20 BlastGateV5 - Z_servo.cpp Documentation\par Exported: 2026-03-13 22:00:02\par Source file: src/Z_servo.cpp\par\par#include <ESP32Servo.h>\par\par
+#include "globals.h"\par\par
+\par\par
+/*\par\par
+ * Servo Interlock Controller\par\par
+ *\par\par
+ * Behavior summary:\par\par
+ * - Switch A is the primary command source.\par\par
+ * - A LOW (active with INPUT_PULLUP) turns servo A ON immediately.\par\par
+ * - A HIGH starts a delayed shutdown countdown for servo A.\par\par
+ * - Servo B is interlocked: it is only allowed ON while A is fully OFF\par\par
+ *   and A is not in its shutdown countdown.\par\par
+ *\par\par
+ * This module is intentionally stateful and uses static file-scope variables\par\par
+ * so setup/loop can be called from the main scheduler without class wrappers.\par\par
+ */\par\par
+\par\par
+\par\par
+// -------------------- Pin Assignments --------------------\par\par
+static const int switchPinA = 18;\par\par
+static const int servoPinA  = 4;\par\par
+\par\par
+static const int switchPinB = 32;\par\par
+static const int servoPinB  = 17;\par\par
+\par\par
+// -------------------- Servo Objects ----------------------\par\par
+static Servo servoA;\par\par
+static Servo servoB;\par\par
+\par\par
+// -------------------- Debounce Variables ----------------\par\par
+static unsigned long lastDebounceTimeA = 0;\par\par
+static unsigned long lastDebounceTimeB = 0;\par\par
+static unsigned long debounceDelay = 50;\par\par
+\par\par
+static bool lastStableStateA = HIGH;\par\par
+static bool lastReadingA = HIGH;\par\par
+\par\par
+static bool lastStableStateB = HIGH;\par\par
+static bool lastReadingB = HIGH;\par\par
+\par\par
+// -------------------- Serial Status Print -------------\par\par
+static unsigned long lastSwitchPrintMs = 0;\par\par
+static const unsigned long switchPrintIntervalMs = 3000;\par\par
+\par\par
+// -------------------- Countdown Control ----------------\par\par
+static bool countdownActiveA = false;\par\par
+static unsigned long countdownStartA = 0;\par\par
+static int servoGateDelaySeconds = 10;   // delay time in seconds\par\par
+\par\par
+// ---------------------------------------------------------\par\par
+//                COUNTDOWN FUNCTION\par\par
+// ---------------------------------------------------------\par\par
+/**\par\par
+ * Render a countdown on the OLED and report when it has completed.\par\par
+ *\par\par
+ * @param startTime   Timestamp from millis() when countdown began.\par\par
+ * @param durationSec Countdown duration in seconds.\par\par
+ * @param label       Short message shown above the remaining time.\par\par
+ * @return true when countdown has elapsed; false while still counting.\par\par
+ */\par\par
+static bool runCountdown(unsigned long startTime, int durationSec, const char* label)\par\par
+\{\par\par
+    unsigned long elapsed = (millis() - startTime) / 1000;\par\par
+\par\par
+    if (elapsed < durationSec) \{\par\par
+        int remaining = durationSec - elapsed;\par\par
+\par\par
+        display.clearDisplay();\par\par
+        display.setCursor(0, 20);\par\par
+        display.print(label);\par\par
+        display.setCursor(0, 45);\par\par
+        display.print(remaining);\par\par
+        display.print(" sec");\par\par
+        display.display();\par\par
+\par\par
+        return false;  // still counting\par\par
+    \}\par\par
+\par\par
+    // Countdown finished\par\par
+    display.clearDisplay();\par\par
+    display.display();\par\par
+    return true;\par\par
+\}\par\par
+\par\par
+/**\par\par
+ * Configure GPIO inputs and attach the two servo outputs.\par\par
+ *\par\par
+ * Input switches use INPUT_PULLUP, so active state is LOW.\par\par
+ */\par\par
+void servoControllerSetup() \{\par\par
+  pinMode(switchPinA, INPUT_PULLUP);\par\par
+  pinMode(switchPinB, INPUT_PULLUP);\par\par
+\par\par
+  servoA.attach(servoPinA);\par\par
+  servoB.attach(servoPinB);\par\par
+\}\par\par
+\par\par
+/**\par\par
+ * Poll switches, debounce inputs, apply interlock logic, and drive servos.\par\par
+ *\par\par
+ * Interlock rule:\par\par
+ * - B can only energize when A is stable HIGH (OFF) and no A countdown is active.\par\par
+ */\par\par
+void servoControllerLoop() \{\par\par
+\par\par
+  // -------------------- Read Inputs --------------------\par\par
+  bool readingA = digitalRead(switchPinA);\par\par
+  bool readingB = digitalRead(switchPinB);\par\par
+\par\par
+  // Print raw switch states every 3 seconds (LOW = active with INPUT_PULLUP)\par\par
+  if ((millis() - lastSwitchPrintMs) >= switchPrintIntervalMs) \{\par\par
+    lastSwitchPrintMs = millis();\par\par
+    Serial.print("SW A[");\par\par
+    Serial.print(switchPinA);\par\par
+    Serial.print("]=");\par\par
+    Serial.print(readingA == LOW ? "LOW" : "HIGH");\par\par
+    Serial.print(" B[");\par\par
+    Serial.print(switchPinB);\par\par
+    Serial.print("]=");\par\par
+    Serial.println(readingB == LOW ? "LOW" : "HIGH");\par\par
+  \}\par\par
+\par\par
+  // -------------------- Debounce A --------------------\par\par
+  if (readingA != lastReadingA) \{\par\par
+    lastDebounceTimeA = millis();\par\par
+  \}\par\par
+\par\par
+  if ((millis() - lastDebounceTimeA) > debounceDelay) \{\par\par
+    if (readingA != lastStableStateA) \{\par\par
+      lastStableStateA = readingA;\par\par
+\par\par
+      // A goes LOW ??? activate immediately\par\par
+      if (lastStableStateA == LOW) \{\par\par
+        servoA.write(120);\par\par
+\par\par
+        // Force B off\par\par
+        servoB.write(45);\par\par
+        lastStableStateB = HIGH;\par\par
+\par\par
+        countdownActiveA = false;\par\par
+        display.clearDisplay();\par\par
+        display.display();\par\par
+      \}\par\par
+\par\par
+      // A goes HIGH ??? start countdown\par\par
+      else \{\par\par
+        countdownActiveA = true;\par\par
+        countdownStartA = millis();\par\par
+      \}\par\par
+    \}\par\par
+  \}\par\par
+  lastReadingA = readingA;\par\par
+\par\par
+  // -------------------- Handle A countdown --------------------\par\par
+  if (countdownActiveA) \{\par\par
+    if (runCountdown(countdownStartA, servoGateDelaySeconds, "A OFF in:")) \{\par\par
+      servoA.write(45);\par\par
+      countdownActiveA = false;\par\par
+    \}\par\par
+  \}\par\par
+\par\par
+  // -------------------- Debounce B --------------------\par\par
+  if (readingB != lastReadingB) \{\par\par
+    lastDebounceTimeB = millis();\par\par
+  \}\par\par
+\par\par
+  if ((millis() - lastDebounceTimeB) > debounceDelay) \{\par\par
+    if (readingB != lastStableStateB) \{\par\par
+      lastStableStateB = readingB;\par\par
+\par\par
+      // Only allow B if A is OFF and not counting down\par\par
+      if (lastStableStateB == LOW && lastStableStateA == HIGH && !countdownActiveA) \{\par\par
+        servoB.write(120);\par\par
+      \} else \{\par\par
+        servoB.write(45);\par\par
+      \}\par\par
+    \}\par\par
+  \}\par\par
+  lastReadingB = readingB;\par\par
+\}\par\par
+\par\par
+}

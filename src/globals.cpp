@@ -19,6 +19,10 @@ byte linkPin = 13;
 byte stepPin = 16;
 byte dirPin = 4;
 byte enablePin = 17;
+int switchPinA = 5;
+int servoPinA = 5;
+int switchPinB = 5;
+int servoPinB = 5;
 
 // MQTT/connect variables
 int toolInt = 0;
@@ -28,7 +32,7 @@ char machineIDChar[3] = "";
 char mID[4] = "";
 String mIDstring;
 char gateName[51] = "";
-char* BGstatus = nullptr;
+const char* BGstatus = nullptr;
 String gateNameString;
 String gateTypeString;
 int keepAlive = 70;
@@ -42,7 +46,7 @@ bool rotation = false;
 String urlFinal;
 bool eepromUpdate = false;   // flag used to trigger EEPROM update 
 char cycleTopic[15] = "";
-const char* ver = "03_13_2026";  // MM_DD_YYYY
+const char* ver = "03_14_2026";  // MM_DD_YYYY
 
 // Working Variables
 int sensorIn = 0;
@@ -59,8 +63,8 @@ String verString;
 String machineIDstring;
 int fullRunSteps = 0;
 byte eCode = 0;
-char* db = nullptr;
-char* dbNew = nullptr;
+const char* db = nullptr;
+const char* dbNew = nullptr;
 
 // Parameters
 const int waitTime = 250;
@@ -112,6 +116,11 @@ String boardID;
 int intboardID = 0;
 String machineID;
 int gateDelaySeconds = 0;
+int bDoubleTriggerMs = 1000;
+int openA = 120;
+int openB = 120;
+int closedA = 40;
+int closedB = 40;
 String gateType;
 
 // human-readable board type from configuration table
