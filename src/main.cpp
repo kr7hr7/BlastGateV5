@@ -16,6 +16,10 @@ static unsigned long sensorInCandidateSinceMs = 0;
 static const unsigned long sensorInDisplayConfirmMs = 250;
 
 static void drawSensorInOnOled(bool clearField, bool pushDisplay) {
+  if (!oledReady) {
+    return;
+  }
+
   const int fieldX = 98;
   const int fieldY = 50;
   const int fieldW = 30;
@@ -240,7 +244,6 @@ void loop()
 
     checkSwitchState();
     sensorIn = (analogRead(ANALOG_PIN_IN));
-    Serial.println (sensorIn);
     if (sensorIn > (trigger + triggerDelta)) {
       belowTriggerStart = 0;
       delay(200);

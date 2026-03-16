@@ -20,7 +20,7 @@ void settings() {
   mqtt_serverAlt         = "192.168.4.99";
   maxInterval            = 15000;  // this is the max between static pressure sample uploads - default 900000 = 15 minutes
   interval               = 500;       //  This variable sets the frequency of static pressure data being sampled
-  staticDelta            = 100;    //   The ammount change required to trigger a mqtt sample
+  staticDelta            = 100;    //   The amount change required to trigger a mqtt sample
   ssid                   = "SDFWA";
   password               = "woodworking";
   ssidAlt                = "kr7hr8";

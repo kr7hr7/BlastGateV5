@@ -12,7 +12,8 @@
 2. `delay(100); Serial.begin(115200);` — serial for debug output.
 
 3. Display initialization
-   - `Wire.begin();`
+   - `Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);`
+   - I2C pin mapping (ESP32): SDA=`GPIO 21`, SCL=`GPIO 22`.
    - `display.begin(SSD1306_SWITCHCAPVCC, 0x3C);`
    - `trace` set to `"Start"` then `displayStat()` called.
 
@@ -68,7 +69,7 @@
 - Boot straps: avoid GPIOs that affect ESP32 boot mode (0,2,4,5,12,15). The project has already moved `gateOff` and `dirPin` off strapping pins; if you rewire, ensure you don't use strap pins or that external circuits don't pull them low.
 - `ArduinoOTA.handle()` must be called periodically to process OTA requests. In this project it's called in `OTA()` and in various utility functions — ensure the code path is exercised while waiting for an OTA upload.
 - If the device resets on boot: open serial monitor at `115200` to see reset reason; verify strapping pins and external hardware.
-- Display: SSD1306 address is `0x3C`. If display fails to initialize, check I2C wiring and `Wire.begin()`.
+- Display: SSD1306 address is `0x3C`. If display fails to initialize, check I2C wiring and verify SDA=`GPIO 21` and SCL=`GPIO 22`.
 - MQTT: If `MQTTconnect()` fails repeatedly, verify `mqtt_server`, `ssid`, `password`, and network reachability.
 
 **Where to look next**

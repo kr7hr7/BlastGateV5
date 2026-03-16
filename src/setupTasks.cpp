@@ -7,8 +7,22 @@ void setupTasks()
   Serial.begin(115200);
   // Serial.println("Booting");
 
-  Wire.begin();
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  Wire.setClock(100000);
+  Wire.setTimeOut(20);
+
+  bool oledOk = display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  if (!oledOk) {
+    oledOk = display.begin(SSD1306_SWITCHCAPVCC, 0x3D);
+  }
+  if (!oledOk) {
+    Serial.println("OLED init failed");
+  } else {
+    display.ssd1306_command(SSD1306_DISPLAYON);
+    display.invertDisplay(false);
+    display.dim(false);
+  }
+  oledReady = oledOk;
   trace = "Start";
   displayStat();
 

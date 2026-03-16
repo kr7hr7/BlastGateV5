@@ -267,6 +267,13 @@ void printStat() {
 
 void displayStat() {
   ArduinoOTA.handle();
+  if (!oledReady) {
+    return;
+  }
+
+  // Keep panel in known-good visible state in case it was put to sleep.
+  display.ssd1306_command(SSD1306_DISPLAYON);
+  display.invertDisplay(false);
   display.clearDisplay();
   display.setTextColor(WHITE);
   display.setTextSize(3);
@@ -322,16 +329,18 @@ void errorState() {
   //Serial.print(" LimitSwitch = ");
   //Serial.println (digitalRead(limitSwitchPin));
   client.publish(availabilityTopic, "offline");
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(3);
-  display.setCursor(20, 0);
-  display.print("Error");
-  display.setCursor(0, 33);
-  display.print("Code");
-  display.setCursor(100, 33);
-  display.print(eCode);
-  display.display();
+  if (oledReady) {
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setTextSize(3);
+    display.setCursor(20, 0);
+    display.print("Error");
+    display.setCursor(0, 33);
+    display.print("Code");
+    display.setCursor(100, 33);
+    display.print(eCode);
+    display.display();
+  }
   for (;;) {
     delay(500);
     dbNew = "U252";
@@ -347,21 +356,19 @@ void errorState() {
 }
 
 //----------------------------------------
-
 void setupError() {
   WiFiConnect();
-  delay(3000);
-  OTA();
-  digitalWrite(enablePin, HIGH);
   client.publish(availabilityTopic, "offline");
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(3);
-  display.setCursor(0, 5);
-  display.print("Setup");
-  display.setCursor(0, 35);
-  display.print("Error");
-  display.display();
+  if (oledReady) {
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setTextSize(3);
+    display.setCursor(0, 5);
+    display.print("Setup");
+    display.setCursor(0, 35);
+    display.print("Error");
+    display.display();
+  }
   for (;;) {
     dbNew = "U280";
     delay(500);

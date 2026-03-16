@@ -20,6 +20,24 @@
 // -------------------- Servo Objects ----------------------
 static Servo servoA;
 static Servo servoB;
+static bool servoAOn = false;
+static bool servoBOn = false;
+
+static inline void updateRelayFromServoStates() {
+  digitalWrite(reedRelayPin, (servoAOn || servoBOn) ? HIGH : LOW);
+}
+
+static inline void commandServoA(bool on) {
+  servoA.write(on ? openA : closedA);
+  servoAOn = on;
+  updateRelayFromServoStates();
+}
+
+static inline void commandServoB(bool on) {
+  servoB.write(on ? openB : closedB);
+  servoBOn = on;
+  updateRelayFromServoStates();
+}
 
 // -------------------- Debounce Variables ----------------
 static unsigned long lastDebounceTimeA = 0;
@@ -61,16 +79,16 @@ static bool runCountdown(unsigned long startTime, int durationSec, const char* l
     if (elapsed < durationSec) {
         int remaining = durationSec - elapsed;
 
-    if (showDisplay && remaining != lastDisplayedRemainingSec) {
-      // Center the number horizontally; at setTextSize(7) each char is 42px wide
+    if (oledReady && showDisplay && remaining != lastDisplayedRemainingSec) {
+      // Center the number horizontally; at setTextSize(4) each char is 24px wide
       int numDigits = (remaining >= 10) ? 2 : 1;
-      int xPos = (SCREEN_WIDTH - numDigits * 42) / 2;
+      int xPos = (SCREEN_WIDTH - numDigits * 24) / 2;
 
       display.clearDisplay();
       display.setTextSize(1);
       display.setCursor(0, 0);
       display.print(label);
-      display.setTextSize(7);          // 42x56 px per char — fills the 64px screen
+      display.setTextSize(4);          // 24x32 px per char
       display.setCursor(xPos, 8);
       display.print(remaining);
       display.display();
@@ -82,9 +100,11 @@ static bool runCountdown(unsigned long startTime, int durationSec, const char* l
     }
 
     // Countdown finished
-    display.clearDisplay();
-    display.setTextSize(1);              // restore default size
-    display.display();
+    if (oledReady) {
+      display.clearDisplay();
+      display.setTextSize(1);              // restore default size
+      display.display();
+    }
   lastDisplayedRemainingSec = -1;
     return true;
 }
@@ -111,18 +131,18 @@ void servoControllerSetup() {
   servoB.attach(servoPinB);
 
   if (lastStableStateA == LOW) {
-    servoA.write(openA);
+    commandServoA(true);
     trace = "ON";
   } else {
-    servoA.write(closedA);
+    commandServoA(false);
     trace = "OFF";
   }
 
   // Apply B interlock at startup without changing the A-based trace text.
   if (lastStableStateB == LOW && lastStableStateA == HIGH) {
-    servoB.write(openB);
+    commandServoB(true);
   } else {
-    servoB.write(closedB);
+    commandServoB(false);
   }
 
   displayStat();
@@ -132,6 +152,7 @@ void servoControllerSetup() {
  * Poll switches, debounce inputs, apply interlock logic, and drive servos.
  *
  * Interlock rule:
+ * - While A is active, all B input changes are ignored.
  * - B can only energize when A is stable HIGH (OFF).
  */
 void servoControllerLoop() {
@@ -144,6 +165,9 @@ void servoControllerLoop() {
   bool readingA = digitalRead(switchPinA);
   bool readingB = digitalRead(switchPinB);
 
+  // Keep relay aligned to commanded servo states even if another path wrote the pin.
+  updateRelayFromServoStates();
+
   // -------------------- Debounce A --------------------
   if (readingA != lastReadingA) {
     lastDebounceTimeA = millis();
@@ -155,12 +179,12 @@ void servoControllerLoop() {
 
       // A goes LOW → activate immediately
       if (lastStableStateA == LOW) {
-        servoA.write(openA);
+        commandServoA(true);
         trace = "ON";
         displayStat();
 
         // Force B off; cancel any B countdown
-        servoB.write(closedB);
+        commandServoB(false);
         // Keep B debounce state aligned to the real pin level to avoid stale edge state.
         lastReadingB = digitalRead(switchPinB);
         countdownActiveB = false;
@@ -170,13 +194,27 @@ void servoControllerLoop() {
 
       // A goes HIGH → close servo immediately
       else {
-        servoA.write(closedA);
+        commandServoA(false);
         trace = "OFF";
         displayStat();
       }
     }
   }
   lastReadingA = readingA;
+
+  // Ignore all B input activity while A is active and keep debounce state aligned
+  // so B does not replay stale edges once A is released.
+  if (lastStableStateA == LOW) {
+    countdownActiveB = false;
+    resumeCountdownOnBHigh = false;
+    pausedRemainingB = 0;
+    lastDisplayedRemainingSec = -1;
+    lastDebounceTimeB = millis();
+    lastReadingB = readingB;
+    lastStableStateB = readingB;
+    yield();
+    return;
+  }
 
   // -------------------- Debounce B --------------------
   if (readingB != lastReadingB) {
@@ -198,12 +236,12 @@ void servoControllerLoop() {
         }
         countdownActiveB = false;
         if (lastStableStateA == HIGH) {
-          servoB.write(openB);
+          commandServoB(true);
           trace = "ON";
           displayStat();
         } else {
           // A is active — B not allowed
-          servoB.write(closedB);
+          commandServoB(false);
           trace = "OFF";
           displayStat();
         }
@@ -219,7 +257,7 @@ void servoControllerLoop() {
           countdownDurationB = 0;
           resumeCountdownOnBHigh = false;
           pausedRemainingB = 0;
-          servoB.write(closedB);
+          commandServoB(false);
           lastDisplayedRemainingSec = -1;
           trace = "OFF";
           displayStat();
@@ -262,7 +300,7 @@ void servoControllerLoop() {
   // -------------------- Handle B countdown --------------------
   if (countdownActiveB) {
     if (runCountdown(countdownStartB, countdownDurationB, "B OFF in:", true)) {
-      servoB.write(closedB);
+      commandServoB(false);
       countdownActiveB = false;
       resumeCountdownOnBHigh = false;
       pausedRemainingB = 0;

@@ -12,6 +12,12 @@ import socket
 import subprocess
 import sys
 import time
+import json
+
+try:
+    from serial.tools import list_ports
+except ImportError:
+    list_ports = None
 
 try:
     from zeroconf import ServiceBrowser, Zeroconf, ServiceListener
@@ -149,13 +155,62 @@ def _run_usb_upload(usb_port):
     return result.returncode
 
 
-def _prompt_combined_menu(usb_port, ota_devices):
-    """Show numbered menu with USB first and OTA devices after.
+def _discover_usb_ports(preferred_port=None):
+    """Return ordered list of serial ports for USB upload selection."""
+    ports = []
+    if list_ports is not None:
+        try:
+            for port in list_ports.comports():
+                if port.device:
+                    ports.append(port.device)
+        except Exception:
+            pass
+
+    # Fallback: ask PlatformIO for detected serial devices.
+    if not ports:
+        try:
+            pio_cmd = env.subst("$PYTHONEXE") if env.get("PYTHONEXE") else sys.executable
+            pio_bin = os.path.join(os.path.dirname(pio_cmd), "platformio.exe")
+            if not os.path.exists(pio_bin):
+                pio_bin = "platformio"
+            result = subprocess.run(
+                [pio_bin, "device", "list", "--json-output"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                devices = json.loads(result.stdout)
+                for dev in devices:
+                    port = dev.get("port")
+                    if port:
+                        ports.append(str(port))
+        except Exception:
+            pass
+
+    # Add preferred port from project options even if not currently detected.
+    if preferred_port and preferred_port not in ports:
+        ports.insert(0, preferred_port)
+
+    # Deduplicate while preserving order.
+    deduped = []
+    for port in ports:
+        if port not in deduped:
+            deduped.append(port)
+    return deduped
+
+
+def _prompt_combined_menu(usb_ports, ota_devices):
+    """Show numbered menu with USB ports first and OTA devices after.
 
     Returns selected option dict, None to abort, or "__EOF__" when input stream
     cannot be read interactively.
     """
-    options = [{"type": "usb", "label": f"USB ({usb_port})"}]
+    options = []
+    for usb_port in usb_ports:
+        options.append(
+            {"type": "usb", "label": f"USB ({usb_port})", "port": usb_port}
+        )
     for device in ota_devices:
         options.append(
             {
@@ -188,9 +243,11 @@ def _prompt_combined_menu(usb_port, ota_devices):
 def select_upload_target(*args, **kwargs):
     """PlatformIO upload pre-action: choose USB or OTA target."""
     try:
-        usb_port = env.GetProjectOption("custom_usb_port", "COM3").strip()
+        preferred_usb_port = env.GetProjectOption("custom_usb_port", "COM3").strip()
     except Exception:
-        usb_port = "COM3"
+        preferred_usb_port = "COM3"
+
+    usb_ports = _discover_usb_ports(preferred_usb_port)
 
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
@@ -201,14 +258,14 @@ def select_upload_target(*args, **kwargs):
         env.Exit(1)
         return
 
-    selected = _prompt_combined_menu(usb_port, ota_devices)
+    selected = _prompt_combined_menu(usb_ports, ota_devices)
     if selected == "__EOF__" or selected is None:
         print("Upload aborted by user.")
         env.Exit(1)
         return
 
     if selected["type"] == "usb":
-        rc = _run_usb_upload(usb_port)
+        rc = _run_usb_upload(selected["port"])
         env.Exit(rc)
         return
 

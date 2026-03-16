@@ -82,8 +82,10 @@ void logCycle();
 
 #define SCREEN_WIDTH 128  // OLED display width, in pixels
 #define SCREEN_HEIGHT 64  // OLED display height, in pixels
-#define OLED_RESET 17     // Reset pin # (or -1 if sharing Arduino reset pin)
+#define OLED_RESET -1     // Use shared reset; avoids conflict with servo pin assignments
 #define SCREEN_ADDRESS 0x3C
+#define I2C_SDA_PIN 21
+#define I2C_SCL_PIN 22
 #define WiFiTimeOutMS 5000
 #define EEPROM_SIZE 20 
 
@@ -193,6 +195,7 @@ extern volatile bool gateCloseState;
 extern volatile bool gateOpenState;
 extern volatile bool moveState;
 extern volatile bool otaOn;
+extern bool          oledReady;
 extern int           manualStatus;
 extern int           flag;
 

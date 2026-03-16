@@ -90,19 +90,21 @@ void closeGate() {
         Serial.print("  closeTime=  ");
         Serial.println(closeTime);
     */
-    display.clearDisplay();
-    display.setTextColor(WHITE);
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.print("Close in");
-    display.setTextSize(4);
-    display.setCursor(0, 20);
-    display.print(gateDelaySeconds);
-    display.setCursor(0, 50);
-    display.setTextSize(2);
-    display.print("Seconds");
-    display.display();
-    display.setTextSize(4);
+    if (oledReady) {
+      display.clearDisplay();
+      display.setTextColor(WHITE);
+      display.setTextSize(2);
+      display.setCursor(0, 0);
+      display.print("Close in");
+      display.setTextSize(4);
+      display.setCursor(0, 20);
+      display.print(gateDelaySeconds);
+      display.setCursor(0, 50);
+      display.setTextSize(2);
+      display.print("Seconds");
+      display.display();
+      display.setTextSize(4);
+    }
 
     // write_to_google_sheet();
   }
@@ -118,19 +120,21 @@ void closeGate() {
     Serial.print("  closeTime=  ");
     Serial.println(closeTime);
   */
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.print("Close in");
-  display.setTextSize(2);
-  display.setCursor(0, 50);
-  display.print("Seconds");
-  display.display();
-  display.setTextSize(4);
-  display.setCursor(0, 20);
-  display.print(countDown);
-  display.display();
+  if (oledReady) {
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setTextSize(2);
+    display.setCursor(0, 0);
+    display.print("Close in");
+    display.setTextSize(2);
+    display.setCursor(0, 50);
+    display.print("Seconds");
+    display.display();
+    display.setTextSize(4);
+    display.setCursor(0, 20);
+    display.print(countDown);
+    display.display();
+  }
 
   if (currentTime >= closeTime) {
     digitalWrite(reedRelayPin, LOW);
@@ -170,12 +174,14 @@ void openGate() {
   publishGateState();
   //Serial.println(BGtopic);
 
-  display.clearDisplay();
-  display.setTextColor(WHITE);
-  display.setTextSize(3);
-  display.setCursor(0, 20);
-  display.print("Opening");
-  display.display();
+  if (oledReady) {
+    display.clearDisplay();
+    display.setTextColor(WHITE);
+    display.setTextSize(3);
+    display.setCursor(0, 20);
+    display.print("Ready");
+    display.display();
+  }
   //Serial.println(" OpenGate line 115");
   digitalWrite(enablePin, LOW);
   digitalWrite(dirPin, LOW);  // turn counterClockwise

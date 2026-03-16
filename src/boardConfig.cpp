@@ -8,9 +8,14 @@ void boardconfiguration() {
   Serial.print ("boardconfig line 4");  
   Serial.print ("   eeprom Update = ");
   Serial.println (eepromUpdate);
-  if (eepromUpdate == true) {
+  byte flashedMarker = EEPROM.read(3);
+
+  // Keep EEPROM board ID aligned with settings when requested, uninitialized,
+  // or mismatched. This prevents booting with wrong board pin assignments.
+  if (eepromUpdate == true || flashedMarker != 200) {
     eepromWrite();
   }
+
   Serial.println("boardConfig line 7");
   if (EEPROM.read(3) == 200) {
     boardIdByte     = EEPROM.read(0);
@@ -23,9 +28,9 @@ void boardconfiguration() {
       Serial.println ("Board ID confirmed with EEPROM");
     }
     else {
-      Serial.println ("                   boardConfig line #34  setup error");
-      eCode = 2;
-      errorState();
+      Serial.println ("EEPROM board ID mismatch - rewriting from settings");
+      eepromWrite();
+      boardIdByte = EEPROM.read(0);
     }
   }
 
