@@ -51,6 +51,7 @@ void redrawSensorInOnOled(bool pushDisplay = true);
 void servoControllerSetup();
 void servoControllerLoop();
 bool publishGateState(bool force = false);
+bool setGateState(GateState newState, bool forcePublish = false);
 void writeToBootLog();
 //void write_to_google_sheet();
 void reconnect();

@@ -61,6 +61,32 @@ static unsigned long lastBHighTime = 0;   // tracks last B LOW→HIGH for double
 
 static const int COUNTDOWN_MAX_SEC = 180;  // hard ceiling on total countdown
 
+static GateState deriveServoGateState() {
+  if (eCode == 1) {
+    return STATE_ERROR_1;
+  }
+  if (eCode == 2) {
+    return STATE_ERROR_2;
+  }
+  if (eCode == 3) {
+    return STATE_ERROR_3;
+  }
+  if (!servoA.attached() || !servoB.attached()) {
+    return STATE_UNKNOWN;
+  }
+  if (countdownActiveB) {
+    return STATE_CLOSING;
+  }
+  if (servoAOn || servoBOn) {
+    return STATE_OPEN;
+  }
+  return STATE_CLOSED;
+}
+
+static inline void publishServoGateState(bool forcePublish = false) {
+  setGateState(deriveServoGateState(), forcePublish);
+}
+
 // ---------------------------------------------------------
 //                COUNTDOWN FUNCTION
 // ---------------------------------------------------------
@@ -146,6 +172,8 @@ void servoControllerSetup() {
   }
 
   displayStat();
+  // Publish current servo-derived state once at startup.
+  publishServoGateState(true);
 }
 
 /**
@@ -179,6 +207,7 @@ void servoControllerLoop() {
 
       // A goes LOW → activate immediately
       if (lastStableStateA == LOW) {
+        setGateState(STATE_OPENING);
         commandServoA(true);
         trace = "ON";
         displayStat();
@@ -236,6 +265,7 @@ void servoControllerLoop() {
         }
         countdownActiveB = false;
         if (lastStableStateA == HIGH) {
+          setGateState(STATE_OPENING);
           commandServoB(true);
           trace = "ON";
           displayStat();
@@ -308,6 +338,9 @@ void servoControllerLoop() {
       displayStat();
     }
   }
+
+  // Publish only when derived state changed (open/closed/opening/closing/unknown).
+  publishServoGateState();
 
   // Keep WiFi/OTA background work serviced even when no switch edge occurs.
   yield();

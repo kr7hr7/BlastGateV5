@@ -157,8 +157,7 @@ void loop()
       } else {
         trace = "ON";
         if (startTime != 0) {
-          gateState = STATE_OPEN;
-          publishGateState();
+          setGateState(STATE_OPEN);
           Serial.println(BGtopic);
         }
         displayStat();
@@ -203,8 +202,7 @@ void loop()
         } else {
           trace = "ON";
           if (startTime != 0) {
-            gateState = STATE_OPEN;
-            publishGateState();
+            setGateState(STATE_OPEN);
             //Serial.println(BGtopic);
           }
           displayStat();
@@ -233,6 +231,8 @@ void loop()
 
 
   if (gateType == "X") {
+    //Serial.println ("Main Line # 236");
+     checkSwitchState();
     servoControllerLoop();
   }
 
@@ -269,8 +269,7 @@ void loop()
           displayStat();
           startTime = 0;
           digitalWrite(enablePin, HIGH);
-          gateState = STATE_OPEN;
-          publishGateState();
+          setGateState(STATE_OPEN);
         }
       }
     }

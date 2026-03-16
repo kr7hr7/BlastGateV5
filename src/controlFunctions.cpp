@@ -11,8 +11,7 @@ void homePosition() {
   }
   trace = "Closing";
   displayStat();
-  gateState = STATE_CLOSING;
-  publishGateState();
+  setGateState(STATE_CLOSING);
 
   stepPosition = 0;
   const unsigned long homeStartTime = millis();
@@ -36,24 +35,21 @@ void homePosition() {
 
     if ((millis() - homeStartTime) > maxHomeDurationMs) {
       Serial.println("Home timeout waiting for limit switch");
-      gateState = STATE_UNKNOWN;
-      publishGateState();
+      setGateState(STATE_UNKNOWN);
       eCode = 5; // Error code 5: close/homing timeout
       errorState();
     }
     
     if (stepPosition >= (fullRunSteps + maxMissedSteps)) {
       Serial.println("Home line 22 ");
-      gateState = STATE_UNKNOWN;
-      publishGateState();
+      setGateState(STATE_UNKNOWN);
       
       eCode=1; //                                         Error code 1
       errorState();
     }
   }
 
-  gateState = STATE_CLOSED;
-  publishGateState();
+  setGateState(STATE_CLOSED);
   digitalWrite(enablePin, HIGH);
   stepPosition = 0;
   gateCloseState = true;
@@ -72,8 +68,7 @@ void closeGate() {
   }
   Serial.println(BGtopic);
   moveState = true;
-  gateState = STATE_CLOSING;
-  publishGateState();
+  setGateState(STATE_CLOSING);
 
   if (startTime == 0) {
     startTime = millis();
@@ -91,16 +86,35 @@ void closeGate() {
         Serial.println(closeTime);
     */
     if (oledReady) {
+      String delayText = String(gateDelaySeconds);
+      int16_t x1, y1;
+      uint16_t textW, textH;
+
       display.clearDisplay();
       display.setTextColor(WHITE);
       display.setTextSize(2);
-      display.setCursor(0, 0);
+      display.getTextBounds("Close in", 0, 0, &x1, &y1, &textW, &textH);
+      int closeInX = (display.width() - textW) / 2 - x1;
+      if (closeInX < 0) {
+        closeInX = 0;
+      }
+      display.setCursor(closeInX, 0);
       display.print("Close in");
       display.setTextSize(4);
-      display.setCursor(0, 20);
-      display.print(gateDelaySeconds);
-      display.setCursor(0, 50);
+      display.getTextBounds(delayText, 0, 0, &x1, &y1, &textW, &textH);
+      int delayX = (display.width() - textW) / 2 - x1;
+      if (delayX < 0) {
+        delayX = 0;
+      }
+      display.setCursor(delayX, 18);
+      display.print(delayText);
       display.setTextSize(2);
+      display.getTextBounds("Seconds", 0, 0, &x1, &y1, &textW, &textH);
+      int secondsX = (display.width() - textW) / 2 - x1;
+      if (secondsX < 0) {
+        secondsX = 0;
+      }
+      display.setCursor(secondsX, 50);
       display.print("Seconds");
       display.display();
       display.setTextSize(4);
@@ -121,18 +135,36 @@ void closeGate() {
     Serial.println(closeTime);
   */
   if (oledReady) {
+    String countdownText = String(countDown);
+    int16_t x1, y1;
+    uint16_t textW, textH;
+
     display.clearDisplay();
     display.setTextColor(WHITE);
     display.setTextSize(2);
-    display.setCursor(0, 0);
+    display.getTextBounds("Close in", 0, 0, &x1, &y1, &textW, &textH);
+    int closeInX = (display.width() - textW) / 2 - x1;
+    if (closeInX < 0) {
+      closeInX = 0;
+    }
+    display.setCursor(closeInX, 0);
     display.print("Close in");
-    display.setTextSize(2);
-    display.setCursor(0, 50);
-    display.print("Seconds");
-    display.display();
     display.setTextSize(4);
-    display.setCursor(0, 20);
-    display.print(countDown);
+    display.getTextBounds(countdownText, 0, 0, &x1, &y1, &textW, &textH);
+    int countdownX = (display.width() - textW) / 2 - x1;
+    if (countdownX < 0) {
+      countdownX = 0;
+    }
+    display.setCursor(countdownX, 18);
+    display.print(countdownText);
+    display.setTextSize(2);
+    display.getTextBounds("Seconds", 0, 0, &x1, &y1, &textW, &textH);
+    int secondsX = (display.width() - textW) / 2 - x1;
+    if (secondsX < 0) {
+      secondsX = 0;
+    }
+    display.setCursor(secondsX, 50);
+    display.print("Seconds");
     display.display();
   }
 
@@ -164,14 +196,12 @@ void openGate() {
 
   digitalWrite(reedRelayPin, HIGH);
   digitalWrite(gateOn, HIGH);
-  gateState = STATE_OPENING;
-  publishGateState();
+  setGateState(STATE_OPENING);
   //Serial.println(BGtopic);
   //Serial.println(" OpenGate line 102");
   homePosition();
   //Serial.println(" OpenGate line 104");
-  gateState = STATE_OPENING;
-  publishGateState();
+  setGateState(STATE_OPENING);
   //Serial.println(BGtopic);
 
   if (oledReady) {
@@ -208,8 +238,7 @@ void openGate() {
   startTime = 0;
   moveState = false;
   digitalWrite(enablePin, HIGH);
-  gateState = STATE_OPEN;
-  publishGateState();
+  setGateState(STATE_OPEN);
   //Serial.println(" OpenGate line 137");
 }
 
@@ -227,8 +256,7 @@ void toolOn() {
   gateOpenState = true;
   trace = "ON";
   displayStat();
-  gateState = STATE_OPEN;
-  publishGateState();
+  setGateState(STATE_OPEN);
   //Serial.println(" toolON Line # 17");
 }
 
@@ -247,8 +275,7 @@ void toolOff() {
   Serial.println(" toolOff line 207");
   //Serial.println(BGtopic);
   gateOpenState = false;
-  gateState = STATE_CLOSED;
-  publishGateState();
+  setGateState(STATE_CLOSED);
   digitalWrite(reedRelayPin, LOW);
   digitalWrite(gateOn, LOW);
   trace = "OFF";
@@ -260,8 +287,7 @@ void manualGateClose() {
   Serial.println(" manual gate Close 231");
   const char* mqttTopic = BGtopic;
   gateOpenState = false;
-  gateState = STATE_CLOSED;
-  publishGateState();
+  setGateState(STATE_CLOSED);
   digitalWrite(reedRelayPin, LOW);
   digitalWrite(gateOn, LOW);
   trace = "Off";
@@ -280,8 +306,7 @@ void manualGateOpen() {
   gateOpenState = true;
   trace = "Open";
   displayStat();
-  gateState = STATE_OPEN;
-  publishGateState();
+  setGateState(STATE_OPEN);
   //Serial.println(" manual gate open 218");
 }
 

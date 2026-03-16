@@ -163,9 +163,24 @@ void setupTasks()
 
   Serial.print("enablePin           = ");
   Serial.println(enablePin);
+  
+  Serial.print("Servo A Open        = ");
+  Serial.println(openA);
+
+  Serial.print("Servo A Closed      = ");
+  Serial.println(closedA);
+
+  Serial.print("Servo B Open        = ");
+  Serial.println(openB);
+
+  Serial.print("Servo B Closed      = ");
+  Serial.println(closedB);
   Serial.println("");
+
+
   Serial.println(WiFi.localIP());
   Serial.println("");
+
   Serial.print(" Setup line 197 Gate Type           = ");
   Serial.println(gateType);
   Serial.println("");
@@ -267,10 +282,12 @@ void setupTasks()
 
 //*****************************************
   if (gateType =="X") {
+    Serial.println("Setup line 270 Gate Type = X");
   pinMode(switchPinA, INPUT_PULLUP);
   pinMode(switchPinB, INPUT_PULLUP);
   pinMode(servoPinA, OUTPUT);
   pinMode(servoPinB, OUTPUT); 
+  return;
 }
 
   //*****************************************
@@ -291,8 +308,7 @@ void setupTasks()
       trace = "Off";
       gateOpenTime = 0;
       displayStat();
-      gateState = STATE_CLOSED;
-      publishGateState();
+      setGateState(STATE_CLOSED);
     }
     return;
   }
@@ -325,8 +341,7 @@ void setupTasks()
     trace = "CLOSED";
     gateOpenTime = 0;
     displayStat();
-    gateState = STATE_CLOSED;
-    publishGateState();
+    setGateState(STATE_CLOSED);
   }
   if ((sensorIn >= trigger) && (sensorIn <= (trigger + triggerDelta)) && (gateCloseState == false))
   {
@@ -335,8 +350,7 @@ void setupTasks()
     trace = "CLOSED";
     gateOpenTime = 0;
     displayStat();
-    gateState = STATE_CLOSED;
-    publishGateState();
+    setGateState(STATE_CLOSED);
   }
 
   Serial.print("Setup line 263");

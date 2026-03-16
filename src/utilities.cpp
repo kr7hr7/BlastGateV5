@@ -1,6 +1,5 @@
 #include "utilities.h"
 #include "globals.h"
-#include <ESPmDNS.h>
 
 // Publish gate state only when it changes unless force=true.
 bool publishGateState(bool force) {
@@ -21,6 +20,16 @@ bool publishGateState(bool force) {
   }
 
   return true;
+}
+
+// Apply a state transition and publish it through MQTT.
+bool setGateState(GateState newState, bool forcePublish) {
+  bool changed = (gateState != newState);
+  gateState = newState;
+  if (changed || forcePublish) {
+    publishGateState(forcePublish);
+  }
+  return changed;
 }
 
 //----------------------------------------
@@ -311,16 +320,15 @@ void errorState() {
   //delay(3000);
   Serial.println("errorState line 230");
   if (eCode == 1) {
-    gateState = STATE_ERROR_1;
+    setGateState(STATE_ERROR_1);
   } else if (eCode == 2) {
-    gateState = STATE_ERROR_2;
+    setGateState(STATE_ERROR_2);
   } else if (eCode == 3) {
-    gateState = STATE_ERROR_3;
+    setGateState(STATE_ERROR_3);
   } else {
-    gateState = STATE_UNKNOWN;
+    setGateState(STATE_UNKNOWN);
   }
   trace = "Error";
-  publishGateState();
   OTA();
   Serial.println(" errorState Line232 ");
   //Serial.print(" LimitSwitch = ");
@@ -460,12 +468,8 @@ void OTA() {
     //Serial.println (gateName);
     ArduinoOTA.setPort(3232);
     ArduinoOTA.setHostname(gateName);
-    if (!MDNS.begin(gateName)) {
-      Serial.println("mDNS start failed");
-    } else {
-      // Required for discover_ota.py which scans _arduino._tcp.local.
-      MDNS.addService("arduino", "tcp", 3232);
-    }
+    // ArduinoOTA.begin() initializes mDNS and advertises _arduino._tcp.
+    // Doing it manually here causes duplicate service registration.
     ArduinoOTA.begin();
     otaOn = true;
   }
