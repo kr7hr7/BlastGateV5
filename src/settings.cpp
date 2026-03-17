@@ -3,10 +3,13 @@
 
 void settings() {
 
-  boardID               = "48";
-  machineID             = "25";
+  boardID               = "23";
+  machineID             = "52";
   gateDelaySeconds      = 15;
+
+
   bDoubleTriggerMs      = 750;
+
   openA                 = 120;
   openB                 = 120;
   closedA               = 35;

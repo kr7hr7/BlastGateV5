@@ -84,7 +84,7 @@ static const BoardConfigEntry boardTable[] = {
   {"v5 Black", 20, 20, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
   {"v5 Black", 21, 21, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
   {"v5 Black", 22, 22, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
-  {"v5 Black", 23, 23, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
+  {"v5 Black", 23, 23, 5, 32, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
   {"v5 Black", 24, 24, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
   {"v5 Black", 25, 25, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
   {"v5 Black", 26, 26, 5, 36, 19, 23, 5, 5, 16, 27, 16, 14, 17, 5, 5, 5, 5},
@@ -191,7 +191,9 @@ static const MachineGateEntry machineGateTable[] = {
   {39, "SawStop#2",             "A"},
   {43, "Jet 12-21 Lathe",       "X"},
   {45, "15 inch planer",        "A"},
-  {50, "Static Presure Sensor", "S"},
+  {50, "Static Pressure Sensor","S"},
+  {51, "Miter Saw Cleanup  ",   "C"},
+  {52, "Exhaust Back Pressure", "S"},
 };
 
 
