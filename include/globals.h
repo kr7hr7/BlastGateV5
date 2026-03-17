@@ -70,14 +70,14 @@ void manualGateClose();
 void eepromWrite();
 // removed gatePinConfig in favor of table-based configuration
 void gateTypeConfig();
-
-// descriptive string pulled from board lookup table
+void S_StaticPressureTasks();
 extern const char* boardTypeName;
 void OTA();
 void WiFiConnect();
 void settings();
 void logCycle();
 // void setupTasks(); // replaced by settings()
+void manualGateTasks();
 
 
 

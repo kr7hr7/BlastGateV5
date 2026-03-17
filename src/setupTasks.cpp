@@ -21,6 +21,8 @@ void setupTasks()
     display.ssd1306_command(SSD1306_DISPLAYON);
     display.invertDisplay(false);
     display.dim(false);
+    display.clearDisplay();
+    display.display();
   }
   oledReady = oledOk;
   trace = "Start";
