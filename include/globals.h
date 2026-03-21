@@ -211,6 +211,7 @@ extern int           intboardID;
 extern String        machineID;
 extern int           gateDelaySeconds;
 extern int           bDoubleTriggerMs;
+extern int           closeSwitchDebounceMs;
 extern int           openA;
 extern int           openB;
 extern int           closedA;
