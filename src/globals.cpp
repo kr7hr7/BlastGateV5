@@ -118,6 +118,7 @@ int intboardID = 0;
 String machineID;
 int gateDelaySeconds = 0;
 int bDoubleTriggerMs = 1000;
+int closeSwitchDebounceMs = 250;
 int openA = 120;
 int openB = 120;
 int closedA = 40;
