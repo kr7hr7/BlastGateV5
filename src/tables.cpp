@@ -176,7 +176,7 @@ static const MachineGateEntry machineGateTable[] = {
   {14, "Dust Collector",        "M"},
   {15, "Edge Sander",           "B"},
   {16, "12 inch Jointer",       "A"},
-  {17, "8 inch Jointer",        "A"},
+  {17, "Jet 14 Bandsaw",        "B"},
   {25, "Robust Lathe",          "X"},
   {26, "Miter Saw",             "P"},
   {29, "20 inch Planer",        "A"},
