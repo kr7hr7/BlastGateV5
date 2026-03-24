@@ -33,9 +33,9 @@ void S_StaticPressureTasks()
       Serial.print(inchesH2O_str);
       Serial.print("  ");
 
-      dtostrf(inchesH2O, 4, 1, buffer);
+      dtostrf(inchesH2O, 1, 1, buffer);
       // Publish the message
-      client.publish("home/sensors/static_pressure", buffer);
+      client.publish("backPressure", buffer);
       // Serial.print("MQTT Message Sent: ");
       Serial.println(buffer);
     }
