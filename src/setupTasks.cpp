@@ -235,7 +235,7 @@ void setupTasks()
   Serial.println(gateType);
   Serial.println("");
 
-  if ((gateType != "A") && (gateType != "B") && (gateType != "C") && (gateType != "D") && (gateType != "S") && (gateType != "X") && (gateType != "M"))
+  if ((gateType != "A") && (gateType != "B") && (gateType != "C") && (gateType != "D") && (gateType != "S") && (gateType != "P") && (gateType != "X") && (gateType != "M"))
   {
     Serial.println("");
     Serial.print("Gate Type           = ");
