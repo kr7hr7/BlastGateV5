@@ -209,7 +209,7 @@ void openGate() {
     display.setTextColor(WHITE);
     display.setTextSize(3);
     display.setCursor(0, 20);
-    display.print("Ready");
+    display.print("Opening");
     display.display();
   }
   //Serial.println(" OpenGate line 115");
