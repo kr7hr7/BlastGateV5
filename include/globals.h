@@ -78,6 +78,7 @@ void settings();
 void logCycle();
 // void setupTasks(); // replaced by settings()
 void manualGateTasks();
+void gateTypeL_Tasks();
 
 
 

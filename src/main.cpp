@@ -185,23 +185,7 @@ void loop()
         }
       }
     }
-    /*
-      if (sensorIn < trigger) {
-        if (gateOpenState == true)
-        {
-          digitalWrite(gateOn, LOW);
-          toolOff();
-        }
-    */
-
-    // if (displayFlag == false)
-    //{
-    // trace = "";
-    // displayStat();
-    // displayFlag = true;
-    //}
-    // Serial.println(sensorIn);
-    // delay(holdTime);
+  
   }
 
   if (gateType == "X")
@@ -312,6 +296,11 @@ void loop()
       closeLatchedForLowSignal = false;
     }
     ArduinoOTA.handle();
+  }
+
+  if (gateType == "L")
+  {
+    gateTypeL_Tasks();
   }
 }
 

@@ -110,6 +110,8 @@ static const BoardConfigEntry boardTable[] = {
   {"v13 Green",  48, 48,13,  32,  5, 19, 5,   5,    5,  27, 16,   4, 17,18, 4, 32, 17},
   {"v13 Green",  49, 49,13,  32, 18, 19, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
   {"v10 Blue",   50, 50,10,  32, 19, 18, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
+  {"v14 Blue",   60, 60,14,  32, 18, 19, 27, 27,   27,  27, 16,   4, 17, 27, 27, 27, 27},
+  //              MID   Ver  A0  LS  RR  GLED RLED GON GOFF STEP DIR ENBL SWA SVA SWB SVB
 };
 
 // look up pin assignments based on the boardIdByte read from EEPROM
@@ -164,7 +166,7 @@ struct MachineGateEntry {
 // Unrecognized IDs default to "NA"/"Z" — no placeholder row needed.
 // Keep rows sorted by toolInt ascending for readability.
 static const MachineGateEntry machineGateTable[] = {
-  {0,  "New Gate",              "B"},
+  {0,  "New Gate",              "L"},
   {1,  "Laguna_Resaw",          "A"},
   {2,  "Laguna_3000",           "A"},
   {3,  "Laguna SE",             "A"},

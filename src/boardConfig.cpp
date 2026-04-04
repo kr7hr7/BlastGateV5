@@ -57,6 +57,10 @@ void gateTypeConfig() {
     rotation = false;
     fullRunSteps = 18000;
   }
+  if (gateType == "L") {   // Like D mechanics, but trigger polarity is handled in loop tasks
+    rotation = false;
+    fullRunSteps = 18000;
+  }
   if (gateType == "M") {   // "M" is for manual gates (No controller).  It captures data, starts the DC, and provides an indicator light.
     gateDelaySeconds = 0;
     fullRunSteps = 0;

@@ -206,7 +206,7 @@ def _prompt_combined_menu(usb_ports, ota_devices):
     Returns selected option dict, None to abort, or "__EOF__" when input stream
     cannot be read interactively.
     """
-    options = []
+    options = [{"type": "abort", "label": "Abort upload"}]
     for usb_port in usb_ports:
         options.append(
             {"type": "usb", "label": f"USB ({usb_port})", "port": usb_port}
@@ -236,7 +236,10 @@ def _prompt_combined_menu(usb_ports, ota_devices):
         if raw.isdigit():
             idx = int(raw)
             if 1 <= idx <= len(options):
-                return options[idx - 1]
+                selected = options[idx - 1]
+                if selected["type"] == "abort":
+                    return None
+                return selected
         print(f"Invalid selection. Enter 1-{len(options)} or 0/q to abort.")
 
 

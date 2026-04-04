@@ -3,5 +3,6 @@
 
 void S_StaticPressureTasks();
 void manualGateTasks();
+void gateTypeL_Tasks();
 
 
