@@ -119,7 +119,10 @@ void updateSensorInOnOled(bool forceRedraw, bool pushDisplay)
 void setup()
 {
   setupTasks();
-  servoControllerSetup();
+  if (gateType == "X")
+  {
+    servoControllerSetup();
+  }
 }
 
 void loop()

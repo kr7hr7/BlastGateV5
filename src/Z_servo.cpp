@@ -61,6 +61,91 @@ static unsigned long lastBHighTime = 0;   // tracks last B LOW→HIGH for double
 
 static const int COUNTDOWN_MAX_SEC = 180;  // hard ceiling on total countdown
 
+// -------------------- Gate Type L State ------------------
+static Servo gateTypeLServoB;
+static bool gateTypeLInitialized = false;
+static bool gateTypeLServoBOn = false;
+static unsigned long gateTypeLLastDebounceTimeA = 0;
+static unsigned long gateTypeLLastDebounceTimeB = 0;
+static bool gateTypeLLastStableStateA = HIGH;
+static bool gateTypeLLastReadingA = HIGH;
+static bool gateTypeLLastStableStateB = HIGH;
+static bool gateTypeLLastReadingB = HIGH;
+static bool gateTypeLCountdownActiveB = false;
+static unsigned long gateTypeLCountdownStartB = 0;
+static int gateTypeLCountdownDurationB = 0;
+static int gateTypeLPausedRemainingB = 0;
+static bool gateTypeLResumeCountdownOnBHigh = false;
+static unsigned long gateTypeLLastBHighTime = 0;
+
+static inline void updateRelayForGateTypeL() {
+  digitalWrite(reedRelayPin, (gateOpenState || gateTypeLServoBOn) ? HIGH : LOW);
+}
+
+static inline void commandGateTypeLServoB(bool on) {
+  gateTypeLServoB.write(on ? openB : closedB);
+  gateTypeLServoBOn = on;
+  updateRelayForGateTypeL();
+}
+
+static GateState deriveGateTypeLState() {
+  if (eCode == 1) {
+    return STATE_ERROR_1;
+  }
+  if (eCode == 2) {
+    return STATE_ERROR_2;
+  }
+  if (eCode == 3) {
+    return STATE_ERROR_3;
+  }
+  if (gateTypeLCountdownActiveB) {
+    return STATE_CLOSING;
+  }
+  if (moveState) {
+    return gateState;
+  }
+  if (gateOpenState || gateTypeLServoBOn) {
+    return STATE_OPEN;
+  }
+  if (gateCloseState) {
+    return STATE_CLOSED;
+  }
+  return gateState;
+}
+
+static inline void publishGateTypeLState(bool forcePublish = false) {
+  setGateState(deriveGateTypeLState(), forcePublish);
+}
+
+static void initializeGateTypeLIfNeeded() {
+  if (gateTypeLInitialized) {
+    return;
+  }
+
+  pinMode(switchPinA, INPUT_PULLUP);
+  pinMode(switchPinB, INPUT_PULLUP);
+  Wire.setTimeOut(20);
+
+  gateTypeLLastReadingA = digitalRead(switchPinA);
+  gateTypeLLastStableStateA = gateTypeLLastReadingA;
+  gateTypeLLastReadingB = digitalRead(switchPinB);
+  gateTypeLLastStableStateB = gateTypeLLastReadingB;
+
+  gateTypeLServoB.attach(servoPinB);
+  commandGateTypeLServoB(false);
+
+  gateTypeLInitialized = true;
+
+  if (gateTypeLLastStableStateA == LOW) {
+    openGate();
+    commandGateTypeLServoB(false);
+  } else if (gateTypeLLastStableStateB == LOW) {
+    commandGateTypeLServoB(true);
+  }
+
+  publishGateTypeLState(true);
+}
+
 static GateState deriveServoGateState() {
   if (eCode == 1) {
     return STATE_ERROR_1;
@@ -343,6 +428,148 @@ void servoControllerLoop() {
   publishServoGateState();
 
   // Keep WiFi/OTA background work serviced even when no switch edge occurs.
+  yield();
+}
+
+void gateTypeL_Tasks() {
+  initializeGateTypeLIfNeeded();
+
+  ArduinoOTA.handle();
+  yield();
+
+  bool readingA = digitalRead(switchPinA);
+  bool readingB = digitalRead(switchPinB);
+
+  updateRelayForGateTypeL();
+
+  if (readingA != gateTypeLLastReadingA) {
+    gateTypeLLastDebounceTimeA = millis();
+  }
+
+  if ((millis() - gateTypeLLastDebounceTimeA) > debounceDelay) {
+    if (readingA != gateTypeLLastStableStateA) {
+      gateTypeLLastStableStateA = readingA;
+
+      if (gateTypeLLastStableStateA == LOW) {
+        gateTypeLCountdownActiveB = false;
+        gateTypeLResumeCountdownOnBHigh = false;
+        gateTypeLPausedRemainingB = 0;
+        lastDisplayedRemainingSec = -1;
+        commandGateTypeLServoB(false);
+        gateTypeLLastReadingB = digitalRead(switchPinB);
+
+        if (gateOpenState != true) {
+          openGate();
+        }
+      } else {
+        gateTypeLCountdownActiveB = false;
+        gateTypeLResumeCountdownOnBHigh = false;
+        gateTypeLPausedRemainingB = 0;
+        lastDisplayedRemainingSec = -1;
+        if (gateOpenState == true || gateCloseState == false) {
+          homePosition();
+        }
+        updateRelayForGateTypeL();
+      }
+      publishGateTypeLState();
+    }
+  }
+  gateTypeLLastReadingA = readingA;
+
+  if (gateTypeLLastStableStateA == LOW) {
+    gateTypeLCountdownActiveB = false;
+    gateTypeLResumeCountdownOnBHigh = false;
+    gateTypeLPausedRemainingB = 0;
+    lastDisplayedRemainingSec = -1;
+    gateTypeLLastDebounceTimeB = millis();
+    gateTypeLLastReadingB = readingB;
+    gateTypeLLastStableStateB = readingB;
+    publishGateTypeLState();
+    yield();
+    return;
+  }
+
+  if (readingB != gateTypeLLastReadingB) {
+    gateTypeLLastDebounceTimeB = millis();
+  }
+
+  if ((millis() - gateTypeLLastDebounceTimeB) > debounceDelay) {
+    if (readingB != gateTypeLLastStableStateB) {
+      gateTypeLLastStableStateB = readingB;
+
+      if (gateTypeLLastStableStateB == LOW) {
+        if (gateTypeLCountdownActiveB) {
+          unsigned long elapsed = (millis() - gateTypeLCountdownStartB) / 1000;
+          int remaining = gateTypeLCountdownDurationB - (int)elapsed;
+          if (remaining < 0) remaining = 0;
+          gateTypeLPausedRemainingB = remaining;
+          gateTypeLResumeCountdownOnBHigh = true;
+        }
+        gateTypeLCountdownActiveB = false;
+        setGateState(STATE_OPENING);
+        commandGateTypeLServoB(true);
+        trace = "ON";
+        displayStat();
+      } else {
+        unsigned long now = millis();
+        bool doubleTap = (gateTypeLLastBHighTime != 0) && (now - gateTypeLLastBHighTime < (unsigned long)bDoubleTriggerMs);
+        gateTypeLLastBHighTime = now;
+
+        if (doubleTap) {
+          gateTypeLCountdownActiveB = false;
+          gateTypeLCountdownDurationB = 0;
+          gateTypeLResumeCountdownOnBHigh = false;
+          gateTypeLPausedRemainingB = 0;
+          commandGateTypeLServoB(false);
+          lastDisplayedRemainingSec = -1;
+          trace = "OFF";
+          displayStat();
+        } else if (gateTypeLResumeCountdownOnBHigh) {
+          int newTotal = gateTypeLPausedRemainingB + gateDelaySeconds;
+          if (newTotal > COUNTDOWN_MAX_SEC) newTotal = COUNTDOWN_MAX_SEC;
+          gateTypeLCountdownActiveB = true;
+          gateTypeLCountdownStartB = now;
+          gateTypeLCountdownDurationB = newTotal;
+          gateTypeLResumeCountdownOnBHigh = false;
+          gateTypeLPausedRemainingB = 0;
+          lastDisplayedRemainingSec = -1;
+        } else {
+          if (gateTypeLCountdownActiveB) {
+            unsigned long elapsed = (now - gateTypeLCountdownStartB) / 1000;
+            int remaining = gateTypeLCountdownDurationB - (int)elapsed;
+            if (remaining < 0) remaining = 0;
+            int newTotal = remaining + gateDelaySeconds;
+            if (newTotal > COUNTDOWN_MAX_SEC) newTotal = COUNTDOWN_MAX_SEC;
+            gateTypeLCountdownStartB = now;
+            gateTypeLCountdownDurationB = newTotal;
+            lastDisplayedRemainingSec = -1;
+          } else {
+            gateTypeLCountdownActiveB = true;
+            gateTypeLCountdownStartB = now;
+            gateTypeLCountdownDurationB = gateDelaySeconds;
+            lastDisplayedRemainingSec = -1;
+            trace = "OFF";
+            displayStat();
+          }
+        }
+      }
+    }
+  }
+  gateTypeLLastReadingB = readingB;
+
+  if (gateTypeLCountdownActiveB) {
+    setGateState(STATE_CLOSING);
+    if (runCountdown(gateTypeLCountdownStartB, gateTypeLCountdownDurationB, "B OFF in:", true)) {
+      commandGateTypeLServoB(false);
+      gateTypeLCountdownActiveB = false;
+      gateTypeLResumeCountdownOnBHigh = false;
+      gateTypeLPausedRemainingB = 0;
+      trace = "OFF";
+      displayStat();
+    }
+  }
+
+  publishGateTypeLState();
   yield();
 }
 
