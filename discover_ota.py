@@ -219,6 +219,12 @@ def _prompt_combined_menu(usb_ports, ota_devices):
                 "device": device,
             }
         )
+    options.append(
+        {
+            "type": "ota_manual",
+            "label": "OTA (enter IP manually)",
+        }
+    )
 
     print("\nSelect upload target:")
     print("  0. Abort upload")
@@ -239,6 +245,12 @@ def _prompt_combined_menu(usb_ports, ota_devices):
                 selected = options[idx - 1]
                 if selected["type"] == "abort":
                     return None
+                if selected["type"] == "ota_manual":
+                    ip = input("Enter OTA IP (e.g. 192.168.4.65): ").strip()
+                    if ip:
+                        return {"type": "ota_manual", "ip": ip}
+                    print("No IP entered. Aborting.")
+                    return None
                 return selected
         print(f"Invalid selection. Enter 1-{len(options)} or 0/q to abort.")
 
@@ -250,14 +262,23 @@ def select_upload_target(*args, **kwargs):
     except Exception:
         preferred_usb_port = "COM3"
 
+    try:
+        fallback_ota_ip = env.GetProjectOption("custom_ota_fallback_ip", "").strip()
+    except Exception:
+        fallback_ota_ip = ""
+
     usb_ports = _discover_usb_ports(preferred_usb_port)
 
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
 
     if not sys.stdin.isatty():
+        if fallback_ota_ip:
+            env.Replace(UPLOAD_PORT=fallback_ota_ip)
+            print(f"Non-interactive upload: using fallback OTA IP {fallback_ota_ip}")
+            return
         print("\nInteractive selection is required, but no interactive terminal is available.")
-        print("Upload aborted. Re-run from an interactive terminal/task to choose USB/OTA or Abort.")
+        print("Set custom_ota_fallback_ip in platformio.ini for non-interactive OTA uploads.")
         env.Exit(1)
         return
 
@@ -270,6 +291,11 @@ def select_upload_target(*args, **kwargs):
     if selected["type"] == "usb":
         rc = _run_usb_upload(selected["port"])
         env.Exit(rc)
+        return
+
+    if selected["type"] == "ota_manual":
+        env.Replace(UPLOAD_PORT=selected["ip"])
+        print(f"Using manual OTA IP {selected['ip']}")
         return
 
     device = selected["device"]
