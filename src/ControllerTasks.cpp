@@ -9,6 +9,15 @@ static Servo servoB;
 static bool servoAOn = false;
 static bool servoBOn = false;
 
+void gateTypeLServoSetup() {
+  servoB.attach(servoPinB);
+  servoB.write(closedB);  // Start closed
+}
+
+// Inputs use INPUT_PULLUP wiring: LOW = switch ON, HIGH = switch OFF.
+static constexpr int SWITCH_ON = LOW;
+static constexpr int SWITCH_OFF = HIGH;
+
 static inline void updateRelayFromServoStates() {
   digitalWrite(reedRelayPin, (servoAOn || servoBOn) ? HIGH : LOW);
 }
@@ -35,6 +44,30 @@ static bool lastReadingA = HIGH;
 
 static bool lastStableStateB = HIGH;
 static bool lastReadingB = HIGH;
+
+static unsigned long lastSwitchDebugMs = 0;
+
+static void logSwitchStates(const char* sourceTag, bool force = false) {
+  const unsigned long now = millis();
+  if (!force && (now - lastSwitchDebugMs < 500)) {
+    return;
+  }
+  lastSwitchDebugMs = now;
+
+  const int rawA = digitalRead(switchPinA);
+  const int rawB = digitalRead(switchPinB);
+
+  Serial.print("[");
+  Serial.print(sourceTag);
+  Serial.print("] switchPinA raw=");
+  Serial.print(rawA);
+  Serial.print(" state=");
+  Serial.print((rawA == SWITCH_ON) ? "ON" : "OFF");
+  Serial.print(" | switchPinB raw=");
+  Serial.print(rawB);
+  Serial.print(" state=");
+  Serial.println((rawB == SWITCH_ON) ? "ON" : "OFF");
+}
 
 // -------------------- Countdown Control ----------------
 static bool countdownActiveB = false;
@@ -119,10 +152,12 @@ void servoControllerSetup() {
   lastReadingB = digitalRead(switchPinB);
   lastStableStateB = lastReadingB;
 
+  logSwitchStates("servoSetup", true);
+
   servoA.attach(servoPinA);
   servoB.attach(servoPinB);
 
-  if (lastStableStateA == LOW) {
+  if (lastStableStateA == SWITCH_ON) {
     commandServoA(true);
     trace = "ON";
   } else {
@@ -130,7 +165,7 @@ void servoControllerSetup() {
     trace = "OFF";
   }
 
-  if (lastStableStateB == LOW && lastStableStateA == HIGH) {
+  if (lastStableStateB == SWITCH_ON && lastStableStateA == SWITCH_OFF) {
     commandServoB(true);
   } else {
     commandServoB(false);
@@ -147,6 +182,8 @@ void servoControllerLoop() {
   bool readingA = digitalRead(switchPinA);
   bool readingB = digitalRead(switchPinB);
 
+  logSwitchStates("servoLoop");
+
   updateRelayFromServoStates();
 
   if (readingA != lastReadingA) {
@@ -156,8 +193,9 @@ void servoControllerLoop() {
   if ((millis() - lastDebounceTimeA) > debounceDelay) {
     if (readingA != lastStableStateA) {
       lastStableStateA = readingA;
+      logSwitchStates("A change", true);
 
-      if (lastStableStateA == LOW) {
+      if (lastStableStateA == SWITCH_ON) {
         setGateState(STATE_OPENING);
         commandServoA(true);
         trace = "ON";
@@ -179,7 +217,7 @@ void servoControllerLoop() {
   }
   lastReadingA = readingA;
 
-  if (lastStableStateA == LOW) {
+  if (lastStableStateA == SWITCH_ON) {
     countdownActiveB = false;
     resumeCountdownOnBHigh = false;
     pausedRemainingB = 0;
@@ -198,8 +236,9 @@ void servoControllerLoop() {
   if ((millis() - lastDebounceTimeB) > debounceDelay) {
     if (readingB != lastStableStateB) {
       lastStableStateB = readingB;
+      logSwitchStates("B change", true);
 
-      if (lastStableStateB == LOW) {
+      if (lastStableStateB == SWITCH_ON) {
         if (countdownActiveB) {
           unsigned long elapsed = (millis() - countdownStartB) / 1000;
           int remaining = countdownDurationB - (int)elapsed;
@@ -208,7 +247,7 @@ void servoControllerLoop() {
           resumeCountdownOnBHigh = true;
         }
         countdownActiveB = false;
-        if (lastStableStateA == HIGH) {
+        if (lastStableStateA == SWITCH_OFF) {
           setGateState(STATE_OPENING);
           commandServoB(true);
           trace = "ON";
@@ -363,57 +402,69 @@ void manualGateTasks()
 // ***************************************************************************
 void gateTypeL_Tasks()
 {
-  // Mirror the A/B/C/D gate flow, but invert trigger polarity:
-  // L opens when analog input is below threshold and closes when above.
-  static unsigned long aboveTriggerStart = 0;
+  // Gate type L:
+  //   Switch A (LOW=ON) controls the stepper gate — ON opens, OFF closes.
+  //   Switch B (LOW=ON) controls servo B — ON opens servo, OFF closes servo.
+
+  static bool lastSwitchBState = HIGH;
+  static unsigned long belowTriggerStart = 0;
   static unsigned long notClosedStart = 0;
-  static bool closeLatchedForHighSignal = false;
-  const unsigned long highSignalCloseDelayMs = 1000;
+  static bool closeLatchedForLowSignal = false;
+  static int lLastReadingA = HIGH;
+  static int lStableReadingA = HIGH;
+  static unsigned long lLastDebounceA = 0;
+  const unsigned long lDebounceDelayA = 35;
+  const unsigned long lowSignalCloseDelayMs = 1000;
   const unsigned long notClosedDebounceMs = (unsigned long)((closeSwitchDebounceMs < 25) ? 25 : closeSwitchDebounceMs);
 
-  checkSwitchState();
-  sensorIn = (analogRead(ANALOG_PIN_IN));
-  if (sensorIn < trigger)
+  const int rawSwitchA = digitalRead(switchPinA);
+  if (rawSwitchA != lLastReadingA)
   {
-    aboveTriggerStart = 0;
-    notClosedStart = 0;
-    closeLatchedForHighSignal = false;
-    delay(200);
-    sensorIn = (analogRead(ANALOG_PIN_IN));
-    if (sensorIn < trigger)
-    {
-      startTime = 0;
-      dbNew = "LL140";
-      if (gateOpenState != true)
-      {
-        dbNew = "LL142";
-        openGate();
-      }
+    lLastDebounceA = millis();
+    lLastReadingA = rawSwitchA;
+  }
+  if ((millis() - lLastDebounceA) >= lDebounceDelayA)
+  {
+    lStableReadingA = lLastReadingA;
+  }
+  const bool switchA = (lStableReadingA == LOW);
+  const bool switchB = (digitalRead(switchPinB) == LOW);
 
-      // If tool turns on during countdown to close, force open state.
-      if (gateOpenState == true)
-      {
-        dbNew = "LL149";
-        gateOpenTime = millis();
-        sensor = sensorIn;
-        digitalWrite(reedRelayPin, HIGH);
-        gateOpenState = true;
-        trace = "OPEN";
-        displayStat();
-        startTime = 0;
-        digitalWrite(enablePin, HIGH);
-        setGateState(STATE_OPEN);
-      }
+  // Keep gateCloseState in sync with the physical limit switch.
+  checkSwitchState();
+
+  // ---- Stepper: Switch A ON behaves like A/B/C/D "sensor high" (open/hold open) ----
+  if (switchA)
+  {
+    belowTriggerStart = 0;
+    notClosedStart = 0;
+    closeLatchedForLowSignal = false;
+
+    if (gateOpenState != true)
+    {
+      openGate();
+    }
+    else
+    {
+      // Keep OPEN state fresh while switch remains ON.
+      gateOpenTime = millis();
+      digitalWrite(reedRelayPin, HIGH);
+      gateOpenState = true;
+      trace = "OPEN";
+      displayStat();
+      startTime = 0;
+      digitalWrite(enablePin, HIGH);
+      setGateState(STATE_OPEN);
     }
   }
-
-  if (sensorIn > (trigger + triggerDelta))
+  // ---- Stepper: Switch A OFF behaves like A/B/C/D "sensor low" close path ----
+  else
   {
-    if (aboveTriggerStart == 0)
+    if (belowTriggerStart == 0)
     {
-      aboveTriggerStart = millis();
+      belowTriggerStart = millis();
       notClosedStart = 0;
-      closeLatchedForHighSignal = false;
+      closeLatchedForLowSignal = false;
     }
 
     if (gateCloseState == false)
@@ -428,36 +479,55 @@ void gateTypeL_Tasks()
       notClosedStart = 0;
     }
 
-    dbNew = "LL166";
     const bool gateIndicatesOpen = (gateOpenState == true) || (gateState == STATE_OPEN) || (gateState == STATE_OPENING);
     const bool closeInProgress = (startTime != 0) || (gateState == STATE_CLOSING);
     const bool gatePhysicallyNotClosed = (notClosedStart != 0) && ((millis() - notClosedStart) >= notClosedDebounceMs);
     const bool eligibleToStartClose = (gateIndicatesOpen || gatePhysicallyNotClosed) &&
-                                      (millis() - aboveTriggerStart >= highSignalCloseDelayMs) &&
-                                      (closeLatchedForHighSignal == false);
+                                      (millis() - belowTriggerStart >= lowSignalCloseDelayMs) &&
+                                      (closeLatchedForLowSignal == false);
+
     if (closeInProgress || eligibleToStartClose)
     {
       if (eligibleToStartClose)
       {
-        closeLatchedForHighSignal = true;
+        closeLatchedForLowSignal = true;
       }
       closeGate();
     }
 
+    // Once a gate is confirmed closed during this low-signal period, suppress retrigger.
     if ((gateState == STATE_CLOSED) && (gateCloseState == true))
     {
-      closeLatchedForHighSignal = true;
+      closeLatchedForLowSignal = true;
     }
 
     delay(holdTime);
   }
-  else
-  {
-    aboveTriggerStart = 0;
-    notClosedStart = 0;
-    closeLatchedForHighSignal = false;
+
+  // ---- Servo: driven by Switch B ----
+  if (switchB != (lastSwitchBState == LOW)) {
+    lastSwitchBState = switchB ? LOW : HIGH;
+
+    if (switchB) {
+      servoB.write(openB);
+      Serial.println("[TypeL] Servo B OPEN");
+    } else {
+      servoB.write(closedB);
+      Serial.println("[TypeL] Servo B CLOSED");
+    }
   }
+
   ArduinoOTA.handle();
 }
 
 // ***************************************************************************
+
+void gateL_Tasks()
+{
+  // This function is for gate type L, which uses switch A to control the stepper and switch B to control a servo.
+  // The logic is implemented in gateTypeL_Tasks() for better organization, so this function can be left empty or used for any additional tasks if needed.
+
+
+
+
+}

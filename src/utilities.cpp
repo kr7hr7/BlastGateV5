@@ -1,6 +1,42 @@
 #include "utilities.h"
 #include "globals.h"
 
+namespace {
+constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
+constexpr int SWITCH_ON_STATE = LOW;
+}
+
+void printInputStates() {
+  static int lastRawLimit = -1;
+  static int lastRawA = -1;
+  static int lastRawB = -1;
+
+  const int rawLimit = digitalRead(limitSwitchPin);
+  const int rawA = digitalRead(switchPinA);
+  const int rawB = digitalRead(switchPinB);
+
+  if (rawLimit == lastRawLimit && rawA == lastRawA && rawB == lastRawB) {
+    return;
+  }
+
+  lastRawLimit = rawLimit;
+  lastRawA = rawA;
+  lastRawB = rawB;
+
+  Serial.print("[Inputs] Home raw=");
+  Serial.print(rawLimit);
+  Serial.print(" state=");
+  Serial.print((rawLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+  Serial.print(" | A raw=");
+  Serial.print(rawA);
+  Serial.print(" state=");
+  Serial.print((rawA == SWITCH_ON_STATE) ? "ON" : "OFF");
+  Serial.print(" | B raw=");
+  Serial.print(rawB);
+  Serial.print(" state=");
+  Serial.println((rawB == SWITCH_ON_STATE) ? "ON" : "OFF");
+}
+
 // Publish gate state only when it changes unless force=true.
 bool publishGateState(bool force) {
   static GateState lastPublishedState = STATE_UNKNOWN;
@@ -187,9 +223,37 @@ void MQTTconnect() {
 
 //------------------------------------------------------------------------------
 void checkSwitchState() {
+  static bool initialized = false;
+  static int lastRawLimit = HIGH;
+  static int debouncedLimit = HIGH;
+  static unsigned long lastEdgeUs = 0;
+  const unsigned long debounceUs = 2500UL;
 
   ArduinoOTA.handle();
-  if (digitalRead(limitSwitchPin) == HIGH) {
+  const int rawLimit = digitalRead(limitSwitchPin);
+
+  const unsigned long nowUs = micros();
+  if (!initialized) {
+    initialized = true;
+    lastRawLimit = rawLimit;
+    debouncedLimit = rawLimit;
+    lastEdgeUs = nowUs;
+  }
+
+  if (rawLimit != lastRawLimit) {
+    lastRawLimit = rawLimit;
+    lastEdgeUs = nowUs;
+  }
+
+  if (((unsigned long)(nowUs - lastEdgeUs) >= debounceUs) && (debouncedLimit != lastRawLimit)) {
+    debouncedLimit = lastRawLimit;
+    Serial.print("[checkSwitchState] limitSwitchPin raw=");
+    Serial.print(debouncedLimit);
+    Serial.print(" state=");
+    Serial.println((debouncedLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+  }
+
+  if (debouncedLimit != LIMIT_SWITCH_HOME_STATE) {
     limitSwitchState = false;
     gateCloseState = false;
   }

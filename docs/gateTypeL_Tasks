@@ -1,0 +1,250 @@
+# Functional Specification Document — gateTypeL_Tasks()
+
+**Project:** BlastGateV5  
+**Function:** `gateTypeL_Tasks()`  
+**Source file:** `src/ControllerTasks.cpp:403`  
+**Date:** 04_05_2026  
+
+---
+
+## 1. Purpose
+
+Implement the per-loop control logic for Gate Type L:
+
+- **Switch A** (active-low) drives the stepper-motor gate — LOW = gate open, HIGH = gate close.
+- **Switch B** (active-low) drives Servo B — LOW = servo open, HIGH = servo closed.
+- The stepper close path mirrors the A/B/C/D close state machine: a delay window must expire, a not-closed debounce must expire, and a one-shot latch suppresses re-triggering until Switch A goes high again.
+
+---
+
+## 2. Scope
+
+**In scope:**
+
+- Debouncing Switch A
+- Deriving a stable `switchA` boolean
+- Reading Switch B and detecting edge changes
+- Keeping `gateCloseState` in sync with the physical limit switch via `checkSwitchState()`
+- Stepper open/hold-open path (Switch A ON)
+- Stepper A/B/C/D-style close state machine (Switch A OFF)
+- Servo B edge-driven open/close commands
+- OTA service call
+
+**Out of scope:**
+
+- Firmware OTA authentication
+- MQTT publishing (handled elsewhere in the loop)
+- Switch B debouncing (raw read; edge detection is the sole guard)
+
+---
+
+## 3. Trigger Conditions
+
+Called once per firmware loop iteration when the board is configured as Gate Type L. No preconditions beyond normal loop execution.
+
+---
+
+## 4. Inputs
+
+| Input | Source | Notes |
+|---|---|---|
+| `switchPinA` | `include/globals.h:117` / `src/globals.cpp:22` | GPIO pin for Switch A |
+| `switchPinB` | `include/globals.h:119` / `src/globals.cpp:24` | GPIO pin for Switch B |
+| `gateOpenState` | `include/globals.h:198` / `src/globals.cpp:103` | Current open-state flag |
+| `gateCloseState` | `include/globals.h:197` / `src/globals.cpp:102` | Limit-switch-derived closed flag |
+| `gateState` | `include/globals.h:139` / `src/globals.cpp:44` | Enumerated state (`STATE_OPEN`, `STATE_CLOSED`, etc.) |
+| `startTime` | `include/globals.h:175` / `src/globals.cpp:80` | Timestamp set when a close command is in progress |
+| `gateOpenTime` | `include/globals.h:174` / `src/globals.cpp:79` | Timestamp refreshed while gate is held open |
+| `closeSwitchDebounceMs` | `include/globals.h:216` / `src/globals.cpp:121` | Configurable not-closed debounce window (minimum 25 ms) |
+| `holdTime` | `include/globals.h:168` / `src/globals.cpp:73` | Delay (ms) appended at end of close path each loop iteration |
+| `reedRelayPin` | `include/globals.h:108` / `src/globals.cpp:13` | Reed relay GPIO, driven HIGH while gate is open |
+| `enablePin` | `include/globals.h:116` / `src/globals.cpp:21` | Stepper enable pin, driven HIGH while gate is open |
+| `openB` | `include/globals.h:218` / `src/globals.cpp:123` | Servo B open angle (degrees) |
+| `closedB` | `include/globals.h:220` / `src/globals.cpp:125` | Servo B closed angle (degrees) |
+
+---
+
+## 5. Outputs / Side Effects
+
+| Output | Mechanism |
+|---|---|
+| Stepper gate opened | `openGate()` call |
+| Stepper gate closed | `closeGate()` call |
+| `gateOpenState`, `gateState`, `startTime` updated | `setGateState()` and direct assignments inside open-hold path |
+| `reedRelayPin` driven HIGH | `digitalWrite()` in open-hold path |
+| `enablePin` driven HIGH | `digitalWrite()` in open-hold path |
+| Servo B positioned | `servoB.write(openB)` / `servoB.write(closedB)` on edge |
+| OTA packets serviced | `ArduinoOTA.handle()` at end of function |
+| OLED/serial status | `displayStat()` in open-hold path |
+
+---
+
+## 6. Functional Flow
+
+```
+gateTypeL_Tasks()
+│
+├─ 1. Debounce Switch A
+│       rawSwitchA = digitalRead(switchPinA)
+│       On raw change → reset lLastDebounceA
+│       After lDebounceDelayA (35 ms) → lStableReadingA = lLastReadingA
+│       switchA = (lStableReadingA == LOW)
+│
+├─ 2. Read Switch B (raw, no debounce)
+│       switchB = (digitalRead(switchPinB) == LOW)
+│
+├─ 3. Sync gate-close state with limit switch
+│       checkSwitchState()
+│
+├─ 4. if switchA == true  (Switch A ON → stepper open/hold path)
+│   │
+│   ├─ Reset close state machine:
+│   │     belowTriggerStart = 0
+│   │     notClosedStart = 0
+│   │     closeLatchedForLowSignal = false
+│   │
+│   ├─ if gateOpenState != true
+│   │     openGate()
+│   │
+│   └─ else (gate already open → refresh hold)
+│         gateOpenTime = millis()
+│         digitalWrite(reedRelayPin, HIGH)
+│         gateOpenState = true
+│         trace = "OPEN"
+│         displayStat()
+│         startTime = 0
+│         digitalWrite(enablePin, HIGH)
+│         setGateState(STATE_OPEN)
+│
+├─ 5. else  (Switch A OFF → A/B/C/D-style close state machine)
+│   │
+│   ├─ 5a. Start delay window timer
+│   │       if belowTriggerStart == 0:
+│   │           belowTriggerStart = millis()
+│   │           notClosedStart = 0
+│   │           closeLatchedForLowSignal = false
+│   │
+│   ├─ 5b. Not-closed debounce timer
+│   │       if gateCloseState == false AND notClosedStart == 0:
+│   │           notClosedStart = millis()
+│   │       if gateCloseState == true:
+│   │           notClosedStart = 0
+│   │
+│   ├─ 5c. Compute eligibility
+│   │       gateIndicatesOpen      = gateOpenState || gateState∈{STATE_OPEN,STATE_OPENING}
+│   │       closeInProgress        = startTime != 0 || gateState == STATE_CLOSING
+│   │       gatePhysicallyNotClosed = notClosedStart != 0
+│   │                                 && (millis() - notClosedStart) >= notClosedDebounceMs
+│   │       eligibleToStartClose   = (gateIndicatesOpen || gatePhysicallyNotClosed)
+│   │                                 && (millis() - belowTriggerStart >= lowSignalCloseDelayMs)
+│   │                                 && closeLatchedForLowSignal == false
+│   │
+│   ├─ 5d. Issue close if in-progress or newly eligible
+│   │       if closeInProgress || eligibleToStartClose:
+│   │           if eligibleToStartClose:
+│   │               closeLatchedForLowSignal = true
+│   │           closeGate()
+│   │
+│   ├─ 5e. Suppress re-trigger once confirmed closed
+│   │       if gateState == STATE_CLOSED && gateCloseState == true:
+│   │           closeLatchedForLowSignal = true
+│   │
+│   └─ 5f. Hold delay
+│           delay(holdTime)
+│
+├─ 6. Servo B edge detection & command
+│       if switchB != (lastSwitchBState == LOW):
+│           lastSwitchBState = switchB ? LOW : HIGH
+│           if switchB:  servoB.write(openB)
+│           else:        servoB.write(closedB)
+│
+└─ 7. OTA service
+        ArduinoOTA.handle()
+```
+
+---
+
+## 7. State Machine — Stepper Close Path (Switch A OFF)
+
+| Condition | Action |
+|---|---|
+| `belowTriggerStart == 0` | Start delay-window timer; reset `notClosedStart` and latch |
+| `gateCloseState == false` AND `notClosedStart == 0` | Start not-closed debounce timer |
+| `gateCloseState == true` | Reset not-closed debounce timer |
+| `eligibleToStartClose == true` | Set latch, call `closeGate()` |
+| `closeInProgress == true` AND latch already set | Continue calling `closeGate()` each iteration |
+| `gateState == STATE_CLOSED` AND `gateCloseState == true` | Set latch to suppress further triggers |
+| `switchA` goes HIGH | Reset all close-path state (`belowTriggerStart`, `notClosedStart`, latch) |
+
+---
+
+## 8. Local Variable Inventory
+
+### Static state (persist across loop iterations)
+
+| Variable | Type | Definition | Purpose |
+|---|---|---|---|
+| `lastSwitchBState` | `bool` | `:409` | Previous raw Switch B value for edge detection |
+| `belowTriggerStart` | `unsigned long` | `:410` | Timestamp when Switch A went LOW; drives delay window |
+| `notClosedStart` | `unsigned long` | `:411` | Timestamp when gate first detected not-closed during LOW period |
+| `closeLatchedForLowSignal` | `bool` | `:412` | One-shot close latch; prevents repeated `closeGate()` calls per LOW period |
+| `lLastReadingA` | `int` | `:413` | Previous raw reading of Switch A for debounce |
+| `lStableReadingA` | `int` | `:414` | Debounced stable state of Switch A |
+| `lLastDebounceA` | `unsigned long` | `:415` | Timestamp of last Switch A raw transition |
+
+### Constants (computed once per call)
+
+| Variable | Type | Definition | Value / Source |
+|---|---|---|---|
+| `lDebounceDelayA` | `unsigned long` | `:416` | 35 ms — Switch A debounce window |
+| `lowSignalCloseDelayMs` | `unsigned long` | `:417` | 1000 ms — delay before initiating a close after Switch A goes LOW |
+| `notClosedDebounceMs` | `unsigned long` | `:418` | `max(closeSwitchDebounceMs, 25)` ms |
+
+### Computed per iteration
+
+| Variable | Type | Definition | Derived from |
+|---|---|---|---|
+| `rawSwitchA` | `int` | `:420` | `digitalRead(switchPinA)` |
+| `switchA` | `bool` | `:430` | `lStableReadingA == LOW` |
+| `switchB` | `bool` | `:431` | `digitalRead(switchPinB) == LOW` |
+| `gateIndicatesOpen` | `bool` | `:482` | `gateOpenState` or `gateState` ∈ {OPEN, OPENING} |
+| `closeInProgress` | `bool` | `:483` | `startTime != 0` or `gateState == STATE_CLOSING` |
+| `gatePhysicallyNotClosed` | `bool` | `:484` | `notClosedStart` timer expired past `notClosedDebounceMs` |
+| `eligibleToStartClose` | `bool` | `:485-487` | All eligibility conditions satisfied and latch clear |
+
+---
+
+## 9. External Functions Called
+
+| Function | Location | Call site | Purpose |
+|---|---|---|---|
+| `checkSwitchState()` | `src/utilities.cpp:225` | `:434` | Sync `gateCloseState` with limit switch |
+| `openGate()` | `src/controlFunctions.cpp:204` | `:445` | Command stepper to open position |
+| `closeGate()` | `src/controlFunctions.cpp:103` | `:495` | Command stepper to home/close position |
+| `setGateState(STATE_OPEN)` | — | `:457` | Update enumerated gate state and related flags |
+| `displayStat()` | — | `:454` | Refresh OLED / serial status |
+| `ArduinoOTA.handle()` | Arduino OTA library | `:520` | Service pending OTA updates |
+
+---
+
+## 10. Timing Constants Summary
+
+| Constant | Value | Role |
+|---|---|---|
+| `lDebounceDelayA` | 35 ms | Switch A debounce window |
+| `lowSignalCloseDelayMs` | 1 000 ms | Delay window after Switch A goes LOW before close is eligible |
+| `notClosedDebounceMs` | ≥ 25 ms (configurable via `closeSwitchDebounceMs`) | Time gate must remain not-closed before close is eligible |
+| `holdTime` | Configurable global | Delay added at the end of each close-path iteration |
+
+---
+
+## 11. Edge Cases and Guards
+
+| Scenario | Guard |
+|---|---|
+| Switch A bounces during transition | 35 ms debounce on `lLastReadingA` → `lStableReadingA` |
+| Gate already open when Switch A turns ON | `gateOpenState != true` check gates `openGate()` call; otherwise refreshes hold state |
+| Close triggered repeatedly per LOW period | `closeLatchedForLowSignal` one-shot latch; set on first eligible close and cleared only when Switch A goes HIGH |
+| Gate confirmed closed during LOW period | `gateState == STATE_CLOSED && gateCloseState == true` sets latch to suppress further triggers |
+| `closeSwitchDebounceMs` configured below 25 ms | Floor enforced: `max(closeSwitchDebounceMs, 25)` |
+| Switch B read without debounce | Servo command issued only on logical edge (`switchB != (lastSwitchBState == LOW)`), not on every iteration |

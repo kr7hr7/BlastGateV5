@@ -1,6 +1,10 @@
 #include "controlFunctions.h"
 #include "globals.h"
 
+namespace {
+constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
+}
+
 // ***************************************************************************
 void homePosition() {
   checkSwitchState();
@@ -14,23 +18,55 @@ void homePosition() {
   setGateState(STATE_CLOSING);
 
   stepPosition = 0;
+  Serial.print("[homePosition] limitSwitchPin raw=");
+  Serial.print(digitalRead(limitSwitchPin));
+  Serial.print(" state=");
+  Serial.println((digitalRead(limitSwitchPin) == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+
+  // Homing is intentionally slower than normal travel to avoid missed steps
+  // on drivers/motors that cannot reliably accept very short pulses.
+  const unsigned long minHomePulseUs = 180UL;
+  const unsigned long homePulseUs = (unsigned long)((delayTime < (int)minHomePulseUs) ? minHomePulseUs : delayTime);
+
   const unsigned long homeStartTime = millis();
-  const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + maxMissedSteps);
+  const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + (maxMissedSteps * 8));
+  Serial.print("[homePosition] pulseUs=");
+  Serial.print(homePulseUs);
+  Serial.print(" stepBudget=");
+  Serial.println(homeStepBudget);
   // Time-based failsafe for unexpected stalls in close/homing state.
-  const unsigned long maxHomeDurationMs = (homeStepBudget * (unsigned long)(delayTime * 2 + 350) / 1000UL) + 3000UL;
+  const unsigned long maxHomeDurationMs = (homeStepBudget * (homePulseUs * 2UL + 350UL) / 1000UL) + 3000UL;
   unsigned long lastYield = 0;
-  while ((digitalRead(limitSwitchPin) == HIGH)) {
+  for (;;) {
+    // Use the same switch-state path as main loop logic.
+    checkSwitchState();
+    if (gateCloseState == true) {
+      delayMicroseconds(400);
+      checkSwitchState();
+      if (gateCloseState == true) {
+        break;  // confirmed home
+      }
+    }
+
     dbNew="CF16";
     digitalWrite(stepPin, HIGH);
-    delayMicroseconds(delayTime);
+    delayMicroseconds(homePulseUs);
     digitalWrite(stepPin, LOW);
-    delayMicroseconds(delayTime);
+    delayMicroseconds(homePulseUs);
     stepPosition++;
     
     // Yield to background tasks every 100 steps (~17ms)
     if (stepPosition % 100 == 0) {
       ArduinoOTA.handle();
       yield();
+    }
+
+    if (stepPosition % 250 == 0) {
+      const int rawLimit = digitalRead(limitSwitchPin);
+      Serial.print("[homePosition] stepping raw=");
+      Serial.print(rawLimit);
+      Serial.print(" state=");
+      Serial.println((rawLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
     }
 
     if ((millis() - homeStartTime) > maxHomeDurationMs) {
@@ -40,7 +76,7 @@ void homePosition() {
       errorState();
     }
     
-    if (stepPosition >= (fullRunSteps + maxMissedSteps)) {
+    if (stepPosition >= homeStepBudget) {
       Serial.println("Home line 22 ");
       setGateState(STATE_UNKNOWN);
       
@@ -50,6 +86,10 @@ void homePosition() {
   }
 
   setGateState(STATE_CLOSED);
+  Serial.print("[homePosition] reached home raw=");
+  Serial.print(digitalRead(limitSwitchPin));
+  Serial.print(" state=");
+  Serial.println((digitalRead(limitSwitchPin) == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
   digitalWrite(enablePin, HIGH);
   stepPosition = 0;
   gateCloseState = true;
@@ -62,11 +102,9 @@ void homePosition() {
 // ***************************************************************************
 void closeGate() {
   const char* mqttTopic = BGtopic;
-  Serial.println(" Close Gate");
   if (gateType == "A" || gateType == "B") {
     digitalWrite(reedRelayPin, LOW);
   }
-  Serial.println(BGtopic);
   moveState = true;
   setGateState(STATE_CLOSING);
 
@@ -75,16 +113,6 @@ void closeGate() {
     toolRunTime = ((millis() -onTime)/3600000.0);
     runTime = int((startTime - gateOpenTime) / 1000);
     closeTime = closeDelayTime + startTime;
-    /*
-        Serial.print("Close_Gate Line 448  currentTime=  ");
-        Serial.print(currentTime);
-        Serial.print(" startTime=  ");
-        Serial.print(startTime);
-        Serial.print("  closeDelayTime=  ");
-        Serial.print(closeDelayTime);
-        Serial.print("  closeTime=  ");
-        Serial.println(closeTime);
-    */
     if (oledReady) {
       String delayText = String(gateDelaySeconds);
       int16_t x1, y1;
@@ -124,16 +152,6 @@ void closeGate() {
   }
   currentTime = millis();
   countDown = (closeTime - currentTime) / 1000;
-  /*
-    Serial.print(" Close_Gate Line 476  currentTime=  ");
-    Serial.print(currentTime);
-    Serial.print(" startTime=  ");
-    Serial.print(startTime);
-    Serial.print("  closeDelayTime=  ");
-    Serial.print(closeDelayTime);
-    Serial.print("  closeTime=  ");
-    Serial.println(closeTime);
-  */
   if (oledReady) {
     String countdownText = String(countDown);
     int16_t x1, y1;

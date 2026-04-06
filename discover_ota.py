@@ -2,9 +2,9 @@
 """Upload target selection for PlatformIO OTA uploads.
 
 Interactive menu shown on every OTA upload:
-  0. Abort
-  1. USB (<port>)
-  2+. Discovered OTA devices on the local network
+    0. Abort
+    1..N Available USB COM ports
+    N+1..M Discovered OTA devices on the local network
 """
 
 import os
@@ -188,8 +188,9 @@ def _discover_usb_ports(preferred_port=None):
         except Exception:
             pass
 
-    # Add preferred port from project options even if not currently detected.
-    if preferred_port and preferred_port not in ports:
+    # If preferred port exists in discovered list, move it to the front.
+    if preferred_port and preferred_port in ports:
+        ports.remove(preferred_port)
         ports.insert(0, preferred_port)
 
     # Deduplicate while preserving order.
@@ -206,7 +207,7 @@ def _prompt_combined_menu(usb_ports, ota_devices):
     Returns selected option dict, None to abort, or "__EOF__" when input stream
     cannot be read interactively.
     """
-    options = [{"type": "abort", "label": "Abort upload"}]
+    options = []
     for usb_port in usb_ports:
         options.append(
             {"type": "usb", "label": f"USB ({usb_port})", "port": usb_port}
@@ -219,13 +220,6 @@ def _prompt_combined_menu(usb_ports, ota_devices):
                 "device": device,
             }
         )
-    options.append(
-        {
-            "type": "ota_manual",
-            "label": "OTA (enter IP manually)",
-        }
-    )
-
     print("\nSelect upload target:")
     print("  0. Abort upload")
     for i, option in enumerate(options, 1):
@@ -243,14 +237,6 @@ def _prompt_combined_menu(usb_ports, ota_devices):
             idx = int(raw)
             if 1 <= idx <= len(options):
                 selected = options[idx - 1]
-                if selected["type"] == "abort":
-                    return None
-                if selected["type"] == "ota_manual":
-                    ip = input("Enter OTA IP (e.g. 192.168.4.65): ").strip()
-                    if ip:
-                        return {"type": "ota_manual", "ip": ip}
-                    print("No IP entered. Aborting.")
-                    return None
                 return selected
         print(f"Invalid selection. Enter 1-{len(options)} or 0/q to abort.")
 
@@ -262,23 +248,22 @@ def select_upload_target(*args, **kwargs):
     except Exception:
         preferred_usb_port = "COM3"
 
-    try:
-        fallback_ota_ip = env.GetProjectOption("custom_ota_fallback_ip", "").strip()
-    except Exception:
-        fallback_ota_ip = ""
-
     usb_ports = _discover_usb_ports(preferred_usb_port)
 
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
 
+    print("\nDiscovered upload targets:")
+    print(f"  USB ports: {len(usb_ports)}")
+    for port in usb_ports:
+        print(f"    - {port}")
+    print(f"  OTA devices: {len(ota_devices)}")
+    for dev in ota_devices:
+        print(f"    - {dev['name']} ({dev['ip']})")
+
     if not sys.stdin.isatty():
-        if fallback_ota_ip:
-            env.Replace(UPLOAD_PORT=fallback_ota_ip)
-            print(f"Non-interactive upload: using fallback OTA IP {fallback_ota_ip}")
-            return
         print("\nInteractive selection is required, but no interactive terminal is available.")
-        print("Set custom_ota_fallback_ip in platformio.ini for non-interactive OTA uploads.")
+        print("Run upload from an interactive terminal to choose from discovered OTA targets.")
         env.Exit(1)
         return
 
@@ -291,11 +276,6 @@ def select_upload_target(*args, **kwargs):
     if selected["type"] == "usb":
         rc = _run_usb_upload(selected["port"])
         env.Exit(rc)
-        return
-
-    if selected["type"] == "ota_manual":
-        env.Replace(UPLOAD_PORT=selected["ip"])
-        print(f"Using manual OTA IP {selected['ip']}")
         return
 
     device = selected["device"]

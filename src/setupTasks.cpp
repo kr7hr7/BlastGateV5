@@ -1,4 +1,5 @@
 #include "globals.h"
+#include "ControllerTasks.h"
 
 void setupTasks()
 {
@@ -285,12 +286,28 @@ void setupTasks()
 //*****************************************
   if (gateType =="X") {
     Serial.println("Setup line 270 Gate Type = X");
-  pinMode(switchPinA, INPUT_PULLUP);
-  pinMode(switchPinB, INPUT_PULLUP);
-  pinMode(servoPinA, OUTPUT);
-  pinMode(servoPinB, OUTPUT); 
-  return;
-}
+    pinMode(switchPinA, INPUT_PULLUP);
+    pinMode(switchPinB, INPUT_PULLUP);
+    pinMode(servoPinA, OUTPUT);
+    pinMode(servoPinB, OUTPUT);
+    return;
+  }
+
+  //*****************************************
+  if (gateType == "L") {
+    Serial.println("Setup Gate Type = L (switch A=stepper, switch B=servo)");
+    pinMode(switchPinA, INPUT_PULLUP);
+    pinMode(switchPinB, INPUT_PULLUP);
+    homePosition();
+    gateTypeLServoSetup();
+    trace = "CLOSED";
+    gateOpenTime = 0;
+    displayStat();
+    setGateState(STATE_CLOSED);
+    return;
+  }
+
+
 
   //*****************************************
   if (gateType == "M")

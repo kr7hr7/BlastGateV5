@@ -127,6 +127,7 @@ void loop()
   // Serial.println ("Loop  line 3 ");
   ArduinoOTA.handle();
   client.loop(); // CRITICAL: Must call to maintain MQTT connection and prevent blocking
+  printInputStates();
   updateSensorInOnOled();
 
   // ***************************************************************************
@@ -169,7 +170,6 @@ void loop()
         if (gateOpenState != true)
         {
           digitalWrite(gateOn, HIGH);
-          digitalWrite(limitSwitchPin, LOW);
           toolOn();
         }
         else
