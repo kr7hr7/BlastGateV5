@@ -166,7 +166,7 @@ struct MachineGateEntry {
 // Unrecognized IDs default to "NA"/"Z" — no placeholder row needed.
 // Keep rows sorted by toolInt ascending for readability.
 static const MachineGateEntry machineGateTable[] = {
-  {0,  "New Gate",              "L"},
+  {0,  "New Gate",              "B"},
   {1,  "Laguna_Resaw",          "A"},
   {2,  "Laguna_3000",           "A"},
   {3,  "Laguna SE",             "A"},
