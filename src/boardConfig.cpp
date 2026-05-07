@@ -18,19 +18,24 @@ void boardconfiguration() {
 
   Serial.println("boardConfig line 7");
   if (EEPROM.read(3) == 200) {
-    boardIdByte     = EEPROM.read(0);
+    boardIdByte = EEPROM.read(0);
 
-    Serial.print ("      boardConfig line 44 boardIdByte = ");
-    Serial.print (boardIdByte);
-    Serial.print (" boardID (Int) = ");
-    Serial.println (boardID.toInt());
-    if (boardIdByte == boardID.toInt()) {
-      Serial.println ("Board ID confirmed with EEPROM");
-    }
-    else {
-      Serial.println ("EEPROM board ID mismatch - rewriting from settings");
-      eepromWrite();
-      boardIdByte = EEPROM.read(0);
+    Serial.print("      boardConfig: boardIdByte = ");
+    Serial.print(boardIdByte);
+    Serial.print("  boardID (settings) = ");
+    Serial.println(boardID.toInt());
+
+    // 0x00 or 0xFF = uninitialized/null — treat as no stored ID, proceed normally
+    bool eepromNull = (boardIdByte == 0x00 || boardIdByte == 0xFF);
+    if (eepromNull) {
+      Serial.println("EEPROM board ID is null — proceeding with settings value");
+      boardIdByte = (byte)boardID.toInt();
+    } else if (boardIdByte == (byte)boardID.toInt()) {
+      Serial.println("Board ID confirmed with EEPROM");
+    } else {
+      Serial.println("ERROR: EEPROM board ID does not match settings — Error Code 2");
+      eCode = 2;
+      errorState();
     }
   }
 

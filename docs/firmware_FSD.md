@@ -131,7 +131,7 @@ In each loop iteration:
 
 ### 7.4 Mode X (Servo Controller Loop)
 
-- Calls checkSwitchState() then servoControllerLoop()
+- Calls servoControllerLoop()
 - Implements dual-switch debounce + servo A/B logic + B-side countdown behavior
 
 ### 7.5 Modes A/B/C/D (Stepper)
@@ -145,6 +145,18 @@ In each loop iteration:
 
 - Calls gateTypeL_Tasks() in src/ControllerTasks.cpp
 - This is a distinct task path from servoControllerLoop()
+- Stepper behavior in this mode differs from A/B/C/D close semantics:
+  - Switch A ON: open/hold-open stepper path
+  - Switch A OFF: immediate homing close (no stepper close countdown)
+- Servo behavior in this mode is driven by Switch B with tap gestures:
+  - Switch B ON: open Servo B
+  - Switch B release single tap: add gateDelaySeconds to countdown (capped)
+  - Switch B release double tap: cancel countdown and force Servo B OFF
+- Interlock behavior:
+  - Servo B is forced OFF while stepper is OPEN/OPENING (and while Switch A is active)
+  - Servo B is allowed while stepper is CLOSING
+- Output policy:
+  - Relay/LED are ON only while stepper or servo path is active
 
 ## 8. Stepper Control Functional Behavior (A/B/C/D Core)
 
@@ -245,6 +257,27 @@ publishServoGateState() derives gate state as:
 - CLOSING when B countdown active
 - OPEN when either servo is ON
 - CLOSED otherwise
+
+## 9.6 Mode L Servo/Stepper Interaction
+
+Mode L does not reuse the full servoControllerLoop() state machine. It combines immediate stepper close semantics with Servo B tap controls.
+
+Mode L interaction summary:
+
+- Switch A (debounced, active-low):
+  - ON: open/hold-open stepper behavior
+  - OFF: immediate homing close via homePosition()
+- Switch B (debounced, active-low):
+  - ON edge: opens Servo B and pauses an active countdown while preserving remaining time
+  - OFF edge single tap: starts/extends countdown by gateDelaySeconds, adding to existing remaining time
+  - OFF edge double tap: cancels countdown and turns Servo B off immediately
+- Countdown expiration: closes Servo B and updates UI trace to Off
+
+Interlocks and constraints in Mode L:
+
+- Servo B is force-closed when stepper path is OPEN/OPENING or Switch A is active
+- Servo B input is processed during CLOSING (not blocked)
+- Loop cadence includes a short fixed delay to preserve tap responsiveness during immediate-close behavior
 
 ## 10. State Model and Publishing
 
@@ -375,6 +408,9 @@ Recoverability implication:
 - Home switch debounce floor in checkSwitchState(): minimum 5 ms
 - closeSwitchDebounceMs default: 250 ms
 - Servo A/B debounce delay in servoControllerLoop(): 50 ms
+- Mode L Switch A debounce: 35 ms
+- Mode L Switch B debounce: 35 ms
+- Mode L loop delay during immediate-close path: 5 ms
 - Passive/stepper trigger confirmation delay: 200 ms re-sample
 - Servo B double-trigger window default: 750 ms
 - Gate close countdown base: gateDelaySeconds

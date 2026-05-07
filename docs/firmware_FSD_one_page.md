@@ -14,7 +14,7 @@ Provide reliable, low-latency gate behavior in the shop while keeping connectivi
 ## Modes (Operator View)
 
 - A/B/C/D: Stepper gate control from analog trigger thresholds
-- L: Alternate gate logic path using gateTypeL_Tasks()
+- L: Alternate gate logic path using gateTypeL_Tasks() with immediate Switch A close and Switch B tap gestures
 - X: Servo controller loop (A/B switch debounce + countdown logic)
 - M: Manual gate support from analog input
 - P: Passive tool usage reporting (no stepper travel)
@@ -46,6 +46,12 @@ Provide reliable, low-latency gate behavior in the shop while keeping connectivi
 - Servo mode (X):
   - Switch A ON opens Servo A and locks out B countdown
   - Switch B supports pause/resume/extend countdown behavior and double-tap close
+- Mode L:
+  - Switch A ON opens/holds stepper; Switch A OFF triggers immediate homing close (no stepper countdown)
+  - Switch B ON opens Servo B
+  - Switch B single tap (release) adds gateDelaySeconds to close countdown
+  - Switch B double tap (release) cancels countdown and forces Servo B OFF
+  - Servo B is interlocked OFF while stepper is OPEN/OPENING, but allowed while stepper is CLOSING
 
 ## State and MQTT Summary
 

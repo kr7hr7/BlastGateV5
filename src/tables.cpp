@@ -111,7 +111,13 @@ static const BoardConfigEntry boardTable[] = {
   {"v13 Green",  49, 49,13,  32, 18, 19, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
   {"v10 Blue",   50, 50,10,  32, 19, 18, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
   {"v14 Blue",   60, 60,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
-  //              MID   Ver  A0  LS  RR  GLED RLED GON GOFF STEP DIR ENBL SWA SVA SWB SVB
+  {"v14 Blue",   61, 61,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   62, 62,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   63, 63,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   64, 64,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+
+
+    //              MID   Ver  A0  LS  RR  GLED RLED GON GOFF STEP DIR ENBL SWA SVA SWB SVB
 };
 
 // look up pin assignments based on the boardIdByte read from EEPROM

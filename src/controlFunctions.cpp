@@ -51,6 +51,14 @@ void homePosition() {
 
   const unsigned long homeStartTime = millis();
   const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + (maxMissedSteps * 8));
+  // Mode L close-path servo servicing while homing is in progress.
+  // homePosition() is blocking, so Switch B/countdown must update the same
+  // shared state used by gateTypeL_Tasks().
+  static int hpLastReadingB = HIGH;
+  static int hpStableReadingB = HIGH;
+  static unsigned long hpLastDebounceB = 0;
+  const unsigned long hpDebounceDelayB = 35;
+
   Serial.print("[homePosition] pulseUs=");
   Serial.print(homePulseUs);
   Serial.print(" stepBudget=");
@@ -59,6 +67,47 @@ void homePosition() {
   const unsigned long maxHomeDurationMs = (homeStepBudget * (homePulseUs * 2UL + 350UL) / 1000UL) + 3000UL;
   for (;;) {
     checkSwitchState();
+
+    if (gateType == "L") {
+      const unsigned long nowMs = millis();
+      const int rawSwitchB = digitalRead(switchPinB);
+      if (rawSwitchB != hpLastReadingB) {
+        hpLastDebounceB = nowMs;
+        hpLastReadingB = rawSwitchB;
+      }
+      if ((nowMs - hpLastDebounceB) >= hpDebounceDelayB) {
+        hpStableReadingB = hpLastReadingB;
+      }
+
+      const bool switchBOn = (hpStableReadingB == LOW);
+      if (switchBOn) {
+        if (!modeLServoBIsOpen) {
+          servoB.write(openB);
+          modeLServoBIsOpen = true;
+          Serial.println("[homePosition/TypeL] Switch B ON -> Servo B OPEN");
+        }
+        modeLServoBCountdownActive = false;
+        modeLServoBPausedRemainingSec = 0;
+      } else {
+        if (modeLServoBIsOpen && !modeLServoBCountdownActive) {
+          modeLServoBCountdownDurationSec = (gateDelaySeconds > 0) ? gateDelaySeconds : 1;
+          modeLServoBCountdownStart = nowMs;
+          modeLServoBCountdownActive = true;
+          Serial.print("[homePosition/TypeL] Switch B OFF -> countdown ");
+          Serial.print(modeLServoBCountdownDurationSec);
+          Serial.println(" sec");
+        }
+
+        if (modeLServoBCountdownActive &&
+            (nowMs - modeLServoBCountdownStart) >= (unsigned long)modeLServoBCountdownDurationSec * 1000UL) {
+          servoB.write(closedB);
+          modeLServoBIsOpen = false;
+          modeLServoBCountdownActive = false;
+          modeLServoBPausedRemainingSec = 0;
+          Serial.println("[homePosition/TypeL] Servo B CLOSED after countdown");
+        }
+      }
+    }
 
     if (limitSwitchState) {
       break;

@@ -23,6 +23,8 @@ int switchPinA = 5;
 int servoPinA = 5;
 int switchPinB = 5;
 int servoPinB = 5;
+Servo servoA;
+Servo servoB;
 
 // MQTT/connect variables
 int toolInt = 0;
@@ -124,6 +126,11 @@ int openB = 120;
 int closedA = 40;
 int closedB = 40;
 String gateType;
+bool modeLServoBCountdownActive = false;
+unsigned long modeLServoBCountdownStart = 0;
+int modeLServoBCountdownDurationSec = 0;
+int modeLServoBPausedRemainingSec = 0;
+bool modeLServoBIsOpen = false;
 
 // human-readable board type from configuration table
 const char* boardTypeName = "";

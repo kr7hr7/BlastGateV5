@@ -188,6 +188,12 @@ def _discover_usb_ports(preferred_port=None):
         except Exception:
             pass
 
+    # Always include known common USB options so they can be selected even
+    # if transient discovery misses them.
+    for common_port in ("COM3", "COM4"):
+        if common_port and common_port not in ports:
+            ports.append(common_port)
+
     # If preferred port exists in discovered list, move it to the front.
     if preferred_port and preferred_port in ports:
         ports.remove(preferred_port)
@@ -199,15 +205,6 @@ def _discover_usb_ports(preferred_port=None):
         if port not in deduped:
             deduped.append(port)
     return deduped
-
-
-def _is_valid_ipv4(value):
-    """Return True when value is a valid IPv4 address literal."""
-    try:
-        socket.inet_aton(value)
-        return True
-    except OSError:
-        return False
 
 
 def _prompt_combined_menu(usb_ports, ota_devices):
@@ -266,11 +263,6 @@ def select_upload_target(*args, **kwargs):
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
 
-    try:
-        fallback_ip = env.GetProjectOption("custom_ota_fallback_ip", "").strip()
-    except Exception:
-        fallback_ip = ""
-
     print("\nDiscovered upload targets:")
     print(f"  USB ports: {len(usb_ports)}")
     for port in usb_ports:
@@ -279,18 +271,9 @@ def select_upload_target(*args, **kwargs):
     for dev in ota_devices:
         print(f"    - {dev['name']} ({dev['ip']})")
 
-    # If OTA discovery is empty but a fallback IP is configured, use it.
-    # This keeps OTA usable even when mDNS discovery is unavailable.
-    if len(ota_devices) == 0 and fallback_ip and _is_valid_ipv4(fallback_ip):
-        env.Replace(UPLOAD_PORT=fallback_ip)
-        print(
-            "\nUsing custom_ota_fallback_ip because no OTA devices were discovered: "
-            f"{fallback_ip}"
-        )
-        return
-
     if not sys.stdin.isatty():
-        # VS Code tasks are commonly non-interactive; allow deterministic OTA.
+        # VS Code tasks may run non-interactive. In this mode we only auto-use
+        # a unique discovered OTA target; otherwise require interactive selection.
         if len(ota_devices) == 1:
             device = ota_devices[0]
             env.Replace(UPLOAD_PORT=device["ip"])
@@ -300,16 +283,8 @@ def select_upload_target(*args, **kwargs):
             )
             return
 
-        if fallback_ip and _is_valid_ipv4(fallback_ip):
-            env.Replace(UPLOAD_PORT=fallback_ip)
-            print(
-                "\nNon-interactive mode: using custom_ota_fallback_ip "
-                f"{fallback_ip}"
-            )
-            return
-
         print("\nInteractive selection is required, but no interactive terminal is available.")
-        print("Provide custom_ota_fallback_ip in platformio.ini or run from interactive terminal.")
+        print("Run upload from an interactive terminal to choose USB/OTA/Abort.")
         env.Exit(1)
         return
 

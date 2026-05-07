@@ -4,8 +4,6 @@
 #include "globals.h"
 
 // -------------------- Servo Objects ----------------------
-static Servo servoA;
-static Servo servoB;
 static bool servoAOn = false;
 static bool servoBOn = false;
 
@@ -415,11 +413,6 @@ void gateTypeL_Tasks()
   static int lLastReadingB = HIGH;
   static int lStableReadingB = HIGH;
   static unsigned long lLastDebounceB = 0;
-  static bool lServoBCountdownActive = false;
-  static unsigned long lServoBCountdownStart = 0;
-  static int lServoBCountdownDurationSec = 0;
-  static int lServoBPausedRemainingSec = 0;
-  static bool lServoBIsOpen = false;
   static unsigned long lLastSwitchBTapReleaseMs = 0;
   const unsigned long lDebounceDelayA = 35;
   const unsigned long lDebounceDelayB = 35;
@@ -456,6 +449,20 @@ void gateTypeL_Tasks()
   // ---- Stepper: Switch A ON behaves like A/B/C/D "sensor high" (open/hold open) ----
   if (switchA)
   {
+    // Opening request has priority: force Servo B off immediately.
+    if (modeLServoBIsOpen || modeLServoBCountdownActive)
+    {
+      servoB.write(closedB);
+      modeLServoBIsOpen = false;
+      modeLServoBCountdownActive = false;
+      modeLServoBCountdownDurationSec = 0;
+      modeLServoBPausedRemainingSec = 0;
+      lastDisplayedRemainingSec = -1;
+      trace = "Off";
+      displayStat();
+      Serial.println("[TypeL] Switch A active -> Servo B FORCED OFF");
+    }
+
     if (gateOpenState != true)
     {
       openGate();
@@ -478,18 +485,18 @@ void gateTypeL_Tasks()
   {
     // If Switch B is active while stepper is being asked to close, command
     // Servo B ON before entering the blocking homing close path.
-    if (switchB && !lServoBIsOpen)
+    if (switchB && !modeLServoBIsOpen)
     {
       servoB.write(openB);
-      lServoBIsOpen = true;
-      if (lServoBCountdownActive)
+      modeLServoBIsOpen = true;
+      if (modeLServoBCountdownActive)
       {
-        unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
-        int remaining = lServoBCountdownDurationSec - (int)elapsed;
+        unsigned long elapsed = (nowMs - modeLServoBCountdownStart) / 1000;
+        int remaining = modeLServoBCountdownDurationSec - (int)elapsed;
         if (remaining < 0) remaining = 0;
-        lServoBPausedRemainingSec = remaining;
+        modeLServoBPausedRemainingSec = remaining;
       }
-      lServoBCountdownActive = false;
+      modeLServoBCountdownActive = false;
       lastDisplayedRemainingSec = -1;
       Serial.println("[TypeL] Switch B active during close -> Servo B OPEN");
     }
@@ -502,7 +509,7 @@ void gateTypeL_Tasks()
                                    (gateState == STATE_OPENING) ||
                                    (gateState == STATE_CLOSING);
 
-    if (stepperNeedsClose)
+    if (stepperNeedsClose && gateState != STATE_CLOSING)
     {
       startTime = 0;
       closeTime = 0;
@@ -514,20 +521,21 @@ void gateTypeL_Tasks()
     delay(5);
   }
 
-  // Absolute interlock for mode L:
-  // Servo B must be OFF whenever the stepper path is active/opening/open.
+  // Mode L interlock rule:
+  //   Stepper OPENING or OPEN  -> servo forced OFF (stepper has priority)
+  //   Stepper CLOSING or CLOSED -> servo controlled freely by Switch B / countdown
   const bool stepperInterlockActive = switchA ||
                                       (gateState == STATE_OPEN) ||
                                       (gateState == STATE_OPENING);
 
   if (stepperInterlockActive)
   {
-    if (lServoBIsOpen || lServoBCountdownActive)
+    if (modeLServoBIsOpen || modeLServoBCountdownActive)
     {
       servoB.write(closedB);
-      lServoBIsOpen = false;
-      lServoBCountdownActive = false;
-      lServoBCountdownDurationSec = 0;
+      modeLServoBIsOpen = false;
+      modeLServoBCountdownActive = false;
+      modeLServoBCountdownDurationSec = 0;
       lastDisplayedRemainingSec = -1;
       trace = "Off";
       displayStat();
@@ -545,15 +553,15 @@ void gateTypeL_Tasks()
       lastSwitchBState = switchB ? LOW : HIGH;
 
       if (switchB) {
-        if (lServoBCountdownActive) {
-          unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
-          int remaining = lServoBCountdownDurationSec - (int)elapsed;
+        if (modeLServoBCountdownActive) {
+          unsigned long elapsed = (nowMs - modeLServoBCountdownStart) / 1000;
+          int remaining = modeLServoBCountdownDurationSec - (int)elapsed;
           if (remaining < 0) remaining = 0;
-          lServoBPausedRemainingSec = remaining;
-          lServoBCountdownActive = false;
+          modeLServoBPausedRemainingSec = remaining;
+          modeLServoBCountdownActive = false;
         }
         servoB.write(openB);
-        lServoBIsOpen = true;
+        modeLServoBIsOpen = true;
         lastDisplayedRemainingSec = -1;
         Serial.println("[TypeL] Servo B OPEN");
       } else {
@@ -563,10 +571,10 @@ void gateTypeL_Tasks()
         lLastSwitchBTapReleaseMs = nowMs;
 
         if (doubleTap) {
-          lServoBCountdownActive = false;
-          lServoBCountdownDurationSec = 0;
-          lServoBPausedRemainingSec = 0;
-          lServoBIsOpen = false;
+          modeLServoBCountdownActive = false;
+          modeLServoBCountdownDurationSec = 0;
+          modeLServoBPausedRemainingSec = 0;
+          modeLServoBIsOpen = false;
           servoB.write(closedB);
           lastDisplayedRemainingSec = -1;
           trace = "Off";
@@ -574,21 +582,21 @@ void gateTypeL_Tasks()
           digitalWrite(reedRelayPin, LOW);
           digitalWrite(greenLEDpin, LOW);
           Serial.println("[TypeL] Switch B double-tap -> Servo B OFF, countdown canceled");
-        } else if (lServoBIsOpen || lServoBCountdownActive) {
-          int baseRemaining = lServoBPausedRemainingSec;
-          if (lServoBCountdownActive) {
-            unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
-            int remaining = lServoBCountdownDurationSec - (int)elapsed;
+        } else if (modeLServoBIsOpen || modeLServoBCountdownActive) {
+          int baseRemaining = modeLServoBPausedRemainingSec;
+          if (modeLServoBCountdownActive) {
+            unsigned long elapsed = (nowMs - modeLServoBCountdownStart) / 1000;
+            int remaining = modeLServoBCountdownDurationSec - (int)elapsed;
             if (remaining < 0) remaining = 0;
             baseRemaining = remaining;
           }
 
           int newTotal = baseRemaining + tapIncrementSec;
           if (newTotal > lCountdownMaxSec) newTotal = lCountdownMaxSec;
-          lServoBCountdownActive = true;
-          lServoBCountdownStart = nowMs;
-          lServoBCountdownDurationSec = newTotal;
-          lServoBPausedRemainingSec = 0;
+          modeLServoBCountdownActive = true;
+          modeLServoBCountdownStart = nowMs;
+          modeLServoBCountdownDurationSec = newTotal;
+          modeLServoBPausedRemainingSec = 0;
           lastDisplayedRemainingSec = -1;
           Serial.print("[TypeL] Switch B single tap -> countdown +");
           Serial.print(tapIncrementSec);
@@ -597,12 +605,12 @@ void gateTypeL_Tasks()
       }
     }
 
-    if (lServoBCountdownActive) {
-      if (runCountdown(lServoBCountdownStart, lServoBCountdownDurationSec, "B OFF in:", true)) {
+    if (modeLServoBCountdownActive) {
+      if (runCountdown(modeLServoBCountdownStart, modeLServoBCountdownDurationSec, "B OFF in:", true)) {
         servoB.write(closedB);
-        lServoBCountdownActive = false;
-        lServoBIsOpen = false;
-        lServoBPausedRemainingSec = 0;
+        modeLServoBCountdownActive = false;
+        modeLServoBIsOpen = false;
+        modeLServoBPausedRemainingSec = 0;
         lastDisplayedRemainingSec = -1;
         trace = "Off";
         displayStat();
@@ -617,7 +625,7 @@ void gateTypeL_Tasks()
                              (gateState == STATE_OPEN) ||
                              (gateState == STATE_OPENING) ||
                              (gateState == STATE_CLOSING);
-  const bool servoActive = lServoBIsOpen || lServoBCountdownActive;
+  const bool servoActive = modeLServoBIsOpen || modeLServoBCountdownActive;
   const bool outputsOn = stepperActive || servoActive;
 
   digitalWrite(reedRelayPin, outputsOn ? HIGH : LOW);
