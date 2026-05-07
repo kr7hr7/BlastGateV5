@@ -1,0 +1,47 @@
+flowchart TD
+    S([Start servoControllerLoop]) --> I[OTA handle + read switches + update relay]
+
+    I --> ADB{Switch A debounced\nstate changed?}
+    ADB -- Yes --> AACT{A is ON?}
+    ADB -- No --> ACHECK
+
+    AACT -- Yes --> AON[Open Servo A\nForce Servo B OFF\nReset B countdown state]
+    AACT -- No --> AOFF[Close Servo A]
+
+    AON --> ACHECK
+    AOFF --> ACHECK
+
+    ACHECK{A stably ON?}
+    ACHECK -- Yes --> EARLY[Reset B state + return]
+    ACHECK -- No --> BDB{Switch B debounced\nstate changed?}
+
+    BDB -- No --> CDSVC
+    BDB -- Yes --> BSTATE{B is ON?}
+
+    BSTATE -- Yes --> BON[Optional pause countdown\nThen command Servo B based on A]
+    BSTATE -- No --> BOFF{Double tap?}
+
+    BOFF -- Yes --> DTC[Cancel countdown\nForce Servo B OFF]
+    BOFF -- No --> BR{Resume paused?}
+
+    BR -- Yes --> RSM[Resume countdown\nfrom paused remainder]
+    BR -- No --> BC{Countdown active?}
+
+    BC -- Yes --> EXT[Extend running countdown]
+    BC -- No --> NEW[Start new countdown]
+
+    BON --> CDSVC
+    DTC --> CDSVC
+    RSM --> CDSVC
+    EXT --> CDSVC
+    NEW --> CDSVC
+
+    CDSVC{Countdown active?}
+    CDSVC -- No --> PUB[publishServoGateState + yield]
+    CDSVC -- Yes --> EXP{runCountdown expired?}
+
+    EXP -- No --> PUB
+    EXP -- Yes --> EXPA[Force Servo B OFF\nClear countdown flags]
+    EXPA --> PUB
+
+    PUB --> E([END])

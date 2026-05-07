@@ -3,11 +3,33 @@
 
 namespace {
 constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
+constexpr unsigned long MIN_HOME_PULSE_US = 75UL;
+constexpr unsigned long HOME_RAW_CONFIRM_US = 800UL;
+
+static inline bool isHomeSwitchActiveRaw(int raw) {
+  return raw == LIMIT_SWITCH_HOME_STATE;
+}
 }
 
 // ***************************************************************************
 void homePosition() {
   checkSwitchState();
+
+  // Do not trust a potentially stale software flag here; verify raw switch.
+  if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
+    delayMicroseconds(HOME_RAW_CONFIRM_US);
+    if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
+      setGateState(STATE_CLOSED);
+      digitalWrite(enablePin, HIGH);
+      stepPosition = 0;
+      gateCloseState = true;
+      gateOpenState = false;
+      limitSwitchState = true;
+      Serial.println("[homePosition] already at home; skipping homing steps");
+      return;
+    }
+  }
+
   digitalWrite(enablePin, LOW);
   digitalWrite(dirPin, HIGH);  //turn clockwise
   if (rotation == true) {
@@ -21,12 +43,11 @@ void homePosition() {
   Serial.print("[homePosition] limitSwitchPin raw=");
   Serial.print(digitalRead(limitSwitchPin));
   Serial.print(" state=");
-  Serial.println((digitalRead(limitSwitchPin) == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+  Serial.println(isHomeSwitchActiveRaw(digitalRead(limitSwitchPin)) ? "HOME" : "NOT_HOME");
 
-  // Homing is intentionally slower than normal travel to avoid missed steps
-  // on drivers/motors that cannot reliably accept very short pulses.
-  const unsigned long minHomePulseUs = 180UL;
-  const unsigned long homePulseUs = (unsigned long)((delayTime < (int)minHomePulseUs) ? minHomePulseUs : delayTime);
+  // Keep a conservative lower bound for homing, but allow the configured
+  // step timing to drive close speed on faster drivers.
+  const unsigned long homePulseUs = (unsigned long)((delayTime < (int)MIN_HOME_PULSE_US) ? MIN_HOME_PULSE_US : delayTime);
 
   const unsigned long homeStartTime = millis();
   const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + (maxMissedSteps * 8));
@@ -36,15 +57,19 @@ void homePosition() {
   Serial.println(homeStepBudget);
   // Time-based failsafe for unexpected stalls in close/homing state.
   const unsigned long maxHomeDurationMs = (homeStepBudget * (homePulseUs * 2UL + 350UL) / 1000UL) + 3000UL;
-  unsigned long lastYield = 0;
   for (;;) {
-    // Use the same switch-state path as main loop logic.
     checkSwitchState();
-    if (gateCloseState == true) {
-      delayMicroseconds(400);
-      checkSwitchState();
-      if (gateCloseState == true) {
-        break;  // confirmed home
+
+    if (limitSwitchState) {
+      break;
+    }
+
+    // Home detection must be immediate and deterministic: use raw switch
+    // state with a short confirm delay to reject very brief chatter.
+    if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
+      delayMicroseconds(HOME_RAW_CONFIRM_US);
+      if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
+        break;
       }
     }
 
@@ -66,7 +91,7 @@ void homePosition() {
       Serial.print("[homePosition] stepping raw=");
       Serial.print(rawLimit);
       Serial.print(" state=");
-      Serial.println((rawLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+      Serial.println(isHomeSwitchActiveRaw(rawLimit) ? "HOME" : "NOT_HOME");
     }
 
     if ((millis() - homeStartTime) > maxHomeDurationMs) {
@@ -89,8 +114,15 @@ void homePosition() {
   Serial.print("[homePosition] reached home raw=");
   Serial.print(digitalRead(limitSwitchPin));
   Serial.print(" state=");
-  Serial.println((digitalRead(limitSwitchPin) == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
-  digitalWrite(enablePin, HIGH);
+  Serial.println(isHomeSwitchActiveRaw(digitalRead(limitSwitchPin)) ? "HOME" : "NOT_HOME");
+  // Gate Type B mechanics can relax off the switch if the driver is disabled
+  // immediately after homing. Keep holding torque enabled at closed to prevent
+  // repeated re-homing cycles.
+  if (gateType == "B") {
+    digitalWrite(enablePin, LOW);
+  } else {
+    digitalWrite(enablePin, HIGH);
+  }
   stepPosition = 0;
   gateCloseState = true;
   gateOpenState = false;
@@ -205,6 +237,21 @@ void openGate() {
   //Serial.println ("OpenGate line 89 ");
 
   const char* mqttTopic = BGtopic;
+  checkSwitchState();
+  if (gateCloseState != true) {
+    Serial.println("[openGate] gate not confirmed CLOSED/HOME; running homing cycle first");
+    homePosition();
+    checkSwitchState();
+    if (gateCloseState != true) {
+      Serial.println("[openGate] homing did not establish CLOSED/HOME; aborting open");
+      trace = "NOT_HOME";
+      displayStat();
+      setGateState(STATE_UNKNOWN);
+      moveState = false;
+      return;
+    }
+  }
+
   moveState = true;
   //Serial.println (" Open Gate");
   gateOpenTime = millis();
@@ -215,10 +262,8 @@ void openGate() {
   digitalWrite(reedRelayPin, HIGH);
   digitalWrite(gateOn, HIGH);
   setGateState(STATE_OPENING);
-  //Serial.println(BGtopic);
-  //Serial.println(" OpenGate line 102");
-  homePosition();
-  //Serial.println(" OpenGate line 104");
+  // Opening is step-count driven: do not invoke homing here.
+  // The close path is responsible for establishing/refreshing home.
   setGateState(STATE_OPENING);
   //Serial.println(BGtopic);
 
@@ -251,6 +296,8 @@ void openGate() {
   }
   digitalWrite(enablePin, HIGH);
   gateOpenState = true;
+  gateCloseState = false;
+  limitSwitchState = false;
   trace = "OPEN";
   displayStat();
   startTime = 0;

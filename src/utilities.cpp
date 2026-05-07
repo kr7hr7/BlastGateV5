@@ -4,6 +4,12 @@
 namespace {
 constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
 constexpr int SWITCH_ON_STATE = LOW;
+
+// Home switch is wired with INPUT_PULLUP on current hardware, so HOME is LOW.
+// Keep this helper centralized so all state-machine paths use the same meaning.
+static inline bool isHomeSwitchActiveRaw(int raw) {
+  return raw == LIMIT_SWITCH_HOME_STATE;
+}
 }
 
 void printInputStates() {
@@ -26,7 +32,7 @@ void printInputStates() {
   Serial.print("[Inputs] Home raw=");
   Serial.print(rawLimit);
   Serial.print(" state=");
-  Serial.print((rawLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+  Serial.print(isHomeSwitchActiveRaw(rawLimit) ? "HOME" : "NOT_HOME");
   Serial.print(" | A raw=");
   Serial.print(rawA);
   Serial.print(" state=");
@@ -227,7 +233,8 @@ void checkSwitchState() {
   static int lastRawLimit = HIGH;
   static int debouncedLimit = HIGH;
   static unsigned long lastEdgeUs = 0;
-  const unsigned long debounceUs = 2500UL;
+  const int debounceMs = (closeSwitchDebounceMs < 5) ? 5 : closeSwitchDebounceMs;
+  const unsigned long debounceUs = (unsigned long)debounceMs * 1000UL;
 
   ArduinoOTA.handle();
   const int rawLimit = digitalRead(limitSwitchPin);
@@ -250,10 +257,12 @@ void checkSwitchState() {
     Serial.print("[checkSwitchState] limitSwitchPin raw=");
     Serial.print(debouncedLimit);
     Serial.print(" state=");
-    Serial.println((debouncedLimit == LIMIT_SWITCH_HOME_STATE) ? "HOME" : "NOT_HOME");
+    Serial.println(isHomeSwitchActiveRaw(debouncedLimit) ? "HOME" : "NOT_HOME");
   }
 
-  if (debouncedLimit != LIMIT_SWITCH_HOME_STATE) {
+  // State-machine flags must reflect physical switch state immediately.
+  // Debounced value is retained for diagnostics only.
+  if (!isHomeSwitchActiveRaw(rawLimit)) {
     limitSwitchState = false;
     gateCloseState = false;
   }

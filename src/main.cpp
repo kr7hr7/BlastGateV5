@@ -187,7 +187,7 @@ void loop()
     }
   
   }
-
+// ***************************************************************************
   if (gateType == "X")
   {
     // Serial.println ("Main Line # 236");
@@ -195,38 +195,25 @@ void loop()
     servoControllerLoop();
   }
 
-  // ***************************************************************************
-  if ((gateType == "A") || (gateType == "B") || (gateType == "C") || (gateType == "D"))
-  {
+// ***************************************************************************
+  if ((gateType == "A") || (gateType == "B") || (gateType == "C") || (gateType == "D")) {
     //   Serial.println ("Loop  line 132 ");
-    static unsigned long belowTriggerStart = 0;
-    static unsigned long notClosedStart = 0;
-    static bool closeLatchedForLowSignal = false;
-    const unsigned long lowSignalCloseDelayMs = 1000;
-    const unsigned long notClosedDebounceMs = (unsigned long)((closeSwitchDebounceMs < 25) ? 25 : closeSwitchDebounceMs);
-
     checkSwitchState();
     sensorIn = (analogRead(ANALOG_PIN_IN));
-    if (sensorIn > (trigger + triggerDelta))
-    {
-      belowTriggerStart = 0;
-      notClosedStart = 0;
-      closeLatchedForLowSignal = false;
+    // Serial.println (sensorIn);
+    if (sensorIn > (trigger + triggerDelta)) {
       delay(200);
       sensorIn = (analogRead(ANALOG_PIN_IN));
-      if ((sensorIn > (trigger + triggerDelta)))
-      {
+      if ((sensorIn > (trigger + triggerDelta))) {
         startTime = 0;
         dbNew = "L140";
-        if (gateOpenState != true)
-        {
+        if (gateOpenState != true) {
           dbNew = "L142";
           openGate();
         }
 
         //  If tool is turned on during countdown to close
-        if (gateOpenState == true)
-        {
+        if (gateOpenState == true) {
           // Serial.println (sensorIn);
           dbNew = "L149";
           gateOpenTime = millis();
@@ -243,57 +230,13 @@ void loop()
       }
     }
 
-    if (sensorIn < trigger)
-    {
-      if (belowTriggerStart == 0)
-      {
-        belowTriggerStart = millis();
-        notClosedStart = 0;
-        closeLatchedForLowSignal = false;
-      }
-
-      if (gateCloseState == false)
-      {
-        if (notClosedStart == 0)
-        {
-          notClosedStart = millis();
-        }
-      }
-      else
-      {
-        notClosedStart = 0;
-      }
-
+    if (sensorIn < trigger) {
       dbNew = "L166";
-      const bool gateIndicatesOpen = (gateOpenState == true) || (gateState == STATE_OPEN) || (gateState == STATE_OPENING);
-      const bool closeInProgress = (startTime != 0) || (gateState == STATE_CLOSING);
-      // If software state drifts, rely on a debounced limit switch "not closed" signal.
-      const bool gatePhysicallyNotClosed = (notClosedStart != 0) && ((millis() - notClosedStart) >= notClosedDebounceMs);
-      const bool eligibleToStartClose = (gateIndicatesOpen || gatePhysicallyNotClosed) &&
-                                        (millis() - belowTriggerStart >= lowSignalCloseDelayMs) &&
-                                        (closeLatchedForLowSignal == false);
-      if (closeInProgress || eligibleToStartClose)
-      {
-        if (eligibleToStartClose)
-        {
-          closeLatchedForLowSignal = true;
-        }
+      if (gateOpenState == true) {
         closeGate();
       }
 
-      // Once a gate is confirmed closed during this low-signal period, suppress any retrigger.
-      if ((gateState == STATE_CLOSED) && (gateCloseState == true))
-      {
-        closeLatchedForLowSignal = true;
-      }
-
       delay(holdTime);
-    }
-    else
-    {
-      belowTriggerStart = 0;
-      notClosedStart = 0;
-      closeLatchedForLowSignal = false;
     }
     ArduinoOTA.handle();
   }
