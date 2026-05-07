@@ -201,6 +201,15 @@ def _discover_usb_ports(preferred_port=None):
     return deduped
 
 
+def _is_valid_ipv4(value):
+    """Return True when value is a valid IPv4 address literal."""
+    try:
+        socket.inet_aton(value)
+        return True
+    except OSError:
+        return False
+
+
 def _prompt_combined_menu(usb_ports, ota_devices):
     """Show numbered menu with USB ports first and OTA devices after.
 
@@ -220,6 +229,10 @@ def _prompt_combined_menu(usb_ports, ota_devices):
                 "device": device,
             }
         )
+
+    if not options:
+        return "__NO_OPTIONS__"
+
     print("\nSelect upload target:")
     print("  0. Abort upload")
     for i, option in enumerate(options, 1):
@@ -253,6 +266,11 @@ def select_upload_target(*args, **kwargs):
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
 
+    try:
+        fallback_ip = env.GetProjectOption("custom_ota_fallback_ip", "").strip()
+    except Exception:
+        fallback_ip = ""
+
     print("\nDiscovered upload targets:")
     print(f"  USB ports: {len(usb_ports)}")
     for port in usb_ports:
@@ -261,13 +279,46 @@ def select_upload_target(*args, **kwargs):
     for dev in ota_devices:
         print(f"    - {dev['name']} ({dev['ip']})")
 
+    # If OTA discovery is empty but a fallback IP is configured, use it.
+    # This keeps OTA usable even when mDNS discovery is unavailable.
+    if len(ota_devices) == 0 and fallback_ip and _is_valid_ipv4(fallback_ip):
+        env.Replace(UPLOAD_PORT=fallback_ip)
+        print(
+            "\nUsing custom_ota_fallback_ip because no OTA devices were discovered: "
+            f"{fallback_ip}"
+        )
+        return
+
     if not sys.stdin.isatty():
+        # VS Code tasks are commonly non-interactive; allow deterministic OTA.
+        if len(ota_devices) == 1:
+            device = ota_devices[0]
+            env.Replace(UPLOAD_PORT=device["ip"])
+            print(
+                f"\nNon-interactive mode: auto-selected discovered OTA device "
+                f"'{device['name']}' at {device['ip']}"
+            )
+            return
+
+        if fallback_ip and _is_valid_ipv4(fallback_ip):
+            env.Replace(UPLOAD_PORT=fallback_ip)
+            print(
+                "\nNon-interactive mode: using custom_ota_fallback_ip "
+                f"{fallback_ip}"
+            )
+            return
+
         print("\nInteractive selection is required, but no interactive terminal is available.")
-        print("Run upload from an interactive terminal to choose from discovered OTA targets.")
+        print("Provide custom_ota_fallback_ip in platformio.ini or run from interactive terminal.")
         env.Exit(1)
         return
 
     selected = _prompt_combined_menu(usb_ports, ota_devices)
+    if selected == "__NO_OPTIONS__":
+        print("No upload targets available. Upload aborted.")
+        env.Exit(1)
+        return
+
     if selected == "__EOF__" or selected is None:
         print("Upload aborted by user.")
         env.Exit(1)

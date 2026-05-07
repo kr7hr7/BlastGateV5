@@ -16,7 +16,7 @@ void settings() {
   closedA               = 35;
   closedB               = 40;
  
-  eepromUpdate          = false;
+  eepromUpdate          = true;
 
 
 

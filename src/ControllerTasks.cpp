@@ -405,18 +405,25 @@ void gateTypeL_Tasks()
 {
   // Gate type L:
   //   Switch A (LOW=ON) controls the stepper gate — ON opens, OFF closes.
-  //   Switch B (LOW=ON) controls servo B — ON opens servo, OFF closes servo.
+  //   Switch B (LOW=ON) controls servo B — ON opens immediately, OFF starts
+  //   a delayed close countdown.
 
   static bool lastSwitchBState = HIGH;
-  static unsigned long belowTriggerStart = 0;
-  static unsigned long notClosedStart = 0;
-  static bool closeLatchedForLowSignal = false;
   static int lLastReadingA = HIGH;
   static int lStableReadingA = HIGH;
   static unsigned long lLastDebounceA = 0;
+  static int lLastReadingB = HIGH;
+  static int lStableReadingB = HIGH;
+  static unsigned long lLastDebounceB = 0;
+  static bool lServoBCountdownActive = false;
+  static unsigned long lServoBCountdownStart = 0;
+  static int lServoBCountdownDurationSec = 0;
+  static int lServoBPausedRemainingSec = 0;
+  static bool lServoBIsOpen = false;
+  static unsigned long lLastSwitchBTapReleaseMs = 0;
   const unsigned long lDebounceDelayA = 35;
-  const unsigned long lowSignalCloseDelayMs = 1000;
-  const unsigned long notClosedDebounceMs = (unsigned long)((closeSwitchDebounceMs < 25) ? 25 : closeSwitchDebounceMs);
+  const unsigned long lDebounceDelayB = 35;
+  const int lCountdownMaxSec = 180;
 
   const int rawSwitchA = digitalRead(switchPinA);
   if (rawSwitchA != lLastReadingA)
@@ -428,8 +435,20 @@ void gateTypeL_Tasks()
   {
     lStableReadingA = lLastReadingA;
   }
+  const int rawSwitchB = digitalRead(switchPinB);
+  if (rawSwitchB != lLastReadingB)
+  {
+    lLastDebounceB = millis();
+    lLastReadingB = rawSwitchB;
+  }
+  if ((millis() - lLastDebounceB) >= lDebounceDelayB)
+  {
+    lStableReadingB = lLastReadingB;
+  }
+
   const bool switchA = (lStableReadingA == LOW);
-  const bool switchB = (digitalRead(switchPinB) == LOW);
+  const bool switchB = (lStableReadingB == LOW);
+  const unsigned long nowMs = millis();
 
   // Keep gateCloseState in sync with the physical limit switch.
   checkSwitchState();
@@ -437,10 +456,6 @@ void gateTypeL_Tasks()
   // ---- Stepper: Switch A ON behaves like A/B/C/D "sensor high" (open/hold open) ----
   if (switchA)
   {
-    belowTriggerStart = 0;
-    notClosedStart = 0;
-    closeLatchedForLowSignal = false;
-
     if (gateOpenState != true)
     {
       openGate();
@@ -461,62 +476,152 @@ void gateTypeL_Tasks()
   // ---- Stepper: Switch A OFF behaves like A/B/C/D "sensor low" close path ----
   else
   {
-    if (belowTriggerStart == 0)
+    // If Switch B is active while stepper is being asked to close, command
+    // Servo B ON before entering the blocking homing close path.
+    if (switchB && !lServoBIsOpen)
     {
-      belowTriggerStart = millis();
-      notClosedStart = 0;
-      closeLatchedForLowSignal = false;
-    }
-
-    if (gateCloseState == false)
-    {
-      if (notClosedStart == 0)
-      {
-        notClosedStart = millis();
-      }
-    }
-    else
-    {
-      notClosedStart = 0;
-    }
-
-    const bool gateIndicatesOpen = (gateOpenState == true) || (gateState == STATE_OPEN) || (gateState == STATE_OPENING);
-    const bool closeInProgress = (startTime != 0) || (gateState == STATE_CLOSING);
-    const bool gatePhysicallyNotClosed = (notClosedStart != 0) && ((millis() - notClosedStart) >= notClosedDebounceMs);
-    const bool eligibleToStartClose = (gateIndicatesOpen || gatePhysicallyNotClosed) &&
-                                      (millis() - belowTriggerStart >= lowSignalCloseDelayMs) &&
-                                      (closeLatchedForLowSignal == false);
-
-    if (closeInProgress || eligibleToStartClose)
-    {
-      if (eligibleToStartClose)
-      {
-        closeLatchedForLowSignal = true;
-      }
-      closeGate();
-    }
-
-    // Once a gate is confirmed closed during this low-signal period, suppress retrigger.
-    if ((gateState == STATE_CLOSED) && (gateCloseState == true))
-    {
-      closeLatchedForLowSignal = true;
-    }
-
-    delay(holdTime);
-  }
-
-  // ---- Servo: driven by Switch B ----
-  if (switchB != (lastSwitchBState == LOW)) {
-    lastSwitchBState = switchB ? LOW : HIGH;
-
-    if (switchB) {
       servoB.write(openB);
-      Serial.println("[TypeL] Servo B OPEN");
-    } else {
+      lServoBIsOpen = true;
+      if (lServoBCountdownActive)
+      {
+        unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
+        int remaining = lServoBCountdownDurationSec - (int)elapsed;
+        if (remaining < 0) remaining = 0;
+        lServoBPausedRemainingSec = remaining;
+      }
+      lServoBCountdownActive = false;
+      lastDisplayedRemainingSec = -1;
+      Serial.println("[TypeL] Switch B active during close -> Servo B OPEN");
+    }
+
+    // Requirement: when Switch A is deactivated in mode L, close immediately
+    // without the closeGate countdown path.
+    const bool stepperNeedsClose = (gateCloseState == false) ||
+                                   (gateOpenState == true) ||
+                                   (gateState == STATE_OPEN) ||
+                                   (gateState == STATE_OPENING) ||
+                                   (gateState == STATE_CLOSING);
+
+    if (stepperNeedsClose)
+    {
+      startTime = 0;
+      closeTime = 0;
+      countDown = 0;
+      homePosition();
+    }
+
+    // Keep mode L loop responsive for Switch B tap gestures.
+    delay(5);
+  }
+
+  // Absolute interlock for mode L:
+  // Servo B must be OFF whenever the stepper path is active/opening/open.
+  const bool stepperInterlockActive = switchA ||
+                                      (gateState == STATE_OPEN) ||
+                                      (gateState == STATE_OPENING);
+
+  if (stepperInterlockActive)
+  {
+    if (lServoBIsOpen || lServoBCountdownActive)
+    {
       servoB.write(closedB);
-      Serial.println("[TypeL] Servo B CLOSED");
+      lServoBIsOpen = false;
+      lServoBCountdownActive = false;
+      lServoBCountdownDurationSec = 0;
+      lastDisplayedRemainingSec = -1;
+      trace = "Off";
+      displayStat();
+      Serial.println("[TypeL] Interlock: stepper active -> Servo B FORCED OFF");
+    }
+
+    // Sync edge baseline while B is ignored under interlock.
+    lastSwitchBState = switchB ? LOW : HIGH;
+    lLastSwitchBTapReleaseMs = 0;
+  }
+
+  // ---- Servo: driven by Switch B (countdown close on OFF) ----
+  if (!stepperInterlockActive) {
+    if (switchB != (lastSwitchBState == LOW)) {
+      lastSwitchBState = switchB ? LOW : HIGH;
+
+      if (switchB) {
+        if (lServoBCountdownActive) {
+          unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
+          int remaining = lServoBCountdownDurationSec - (int)elapsed;
+          if (remaining < 0) remaining = 0;
+          lServoBPausedRemainingSec = remaining;
+          lServoBCountdownActive = false;
+        }
+        servoB.write(openB);
+        lServoBIsOpen = true;
+        lastDisplayedRemainingSec = -1;
+        Serial.println("[TypeL] Servo B OPEN");
+      } else {
+        const int tapIncrementSec = (gateDelaySeconds > 0) ? gateDelaySeconds : 1;
+        const bool doubleTap = (lLastSwitchBTapReleaseMs != 0) &&
+                               ((nowMs - lLastSwitchBTapReleaseMs) < (unsigned long)bDoubleTriggerMs);
+        lLastSwitchBTapReleaseMs = nowMs;
+
+        if (doubleTap) {
+          lServoBCountdownActive = false;
+          lServoBCountdownDurationSec = 0;
+          lServoBPausedRemainingSec = 0;
+          lServoBIsOpen = false;
+          servoB.write(closedB);
+          lastDisplayedRemainingSec = -1;
+          trace = "Off";
+          displayStat();
+          digitalWrite(reedRelayPin, LOW);
+          digitalWrite(greenLEDpin, LOW);
+          Serial.println("[TypeL] Switch B double-tap -> Servo B OFF, countdown canceled");
+        } else if (lServoBIsOpen || lServoBCountdownActive) {
+          int baseRemaining = lServoBPausedRemainingSec;
+          if (lServoBCountdownActive) {
+            unsigned long elapsed = (nowMs - lServoBCountdownStart) / 1000;
+            int remaining = lServoBCountdownDurationSec - (int)elapsed;
+            if (remaining < 0) remaining = 0;
+            baseRemaining = remaining;
+          }
+
+          int newTotal = baseRemaining + tapIncrementSec;
+          if (newTotal > lCountdownMaxSec) newTotal = lCountdownMaxSec;
+          lServoBCountdownActive = true;
+          lServoBCountdownStart = nowMs;
+          lServoBCountdownDurationSec = newTotal;
+          lServoBPausedRemainingSec = 0;
+          lastDisplayedRemainingSec = -1;
+          Serial.print("[TypeL] Switch B single tap -> countdown +");
+          Serial.print(tapIncrementSec);
+          Serial.println(" sec");
+        }
+      }
+    }
+
+    if (lServoBCountdownActive) {
+      if (runCountdown(lServoBCountdownStart, lServoBCountdownDurationSec, "B OFF in:", true)) {
+        servoB.write(closedB);
+        lServoBCountdownActive = false;
+        lServoBIsOpen = false;
+        lServoBPausedRemainingSec = 0;
+        lastDisplayedRemainingSec = -1;
+        trace = "Off";
+        displayStat();
+        Serial.println("[TypeL] Servo B CLOSED after countdown");
+      }
     }
   }
+
+  // Mode L output policy:
+  // Relay/LED are ON only when either actuator path is active.
+  const bool stepperActive = moveState || gateOpenState ||
+                             (gateState == STATE_OPEN) ||
+                             (gateState == STATE_OPENING) ||
+                             (gateState == STATE_CLOSING);
+  const bool servoActive = lServoBIsOpen || lServoBCountdownActive;
+  const bool outputsOn = stepperActive || servoActive;
+
+  digitalWrite(reedRelayPin, outputsOn ? HIGH : LOW);
+  digitalWrite(greenLEDpin, outputsOn ? HIGH : LOW);
 
   ArduinoOTA.handle();
 }

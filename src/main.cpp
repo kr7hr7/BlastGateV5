@@ -190,8 +190,8 @@ void loop()
 // ***************************************************************************
   if (gateType == "X")
   {
-    // Serial.println ("Main Line # 236");
-    checkSwitchState();
+    // Gate type X is servo-only; avoid checkSwitchState side-effects that can
+    // drive shared GPIOs and interfere with servo PWM on some board maps.
     servoControllerLoop();
   }
 

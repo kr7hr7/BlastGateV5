@@ -192,7 +192,7 @@ static const MachineGateEntry machineGateTable[] = {
   {37, "Pegas",                 "W"},
   {38, "Combo Sander #2",       "B"},
   {39, "SawStop#2",             "A"},
-  {43, "Jet 12-21 Lathe",       "X"},
+  {43, "Jet 12-21 Lathe",       "L"},
   {45, "15 inch planer",        "A"},
   {50, "Static Pressure Sensor","S"},
   {51, "Miter Saw Cleanup  ",   "C"},

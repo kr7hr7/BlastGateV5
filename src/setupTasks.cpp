@@ -53,22 +53,29 @@ void setupTasks()
   displayStat();
 
   pinMode(ANALOG_PIN_IN, INPUT);
-  pinMode(reedRelayPin, OUTPUT);
-  pinMode(greenLEDpin, OUTPUT);
-  pinMode(redLEDpin, OUTPUT);
-  pinMode(enablePin, OUTPUT);
-  pinMode(limitSwitchPin, INPUT_PULLUP);
-  pinMode(gateOn, OUTPUT);
-  pinMode(gateOff, OUTPUT);
-  pinMode(stepPin, OUTPUT);
-  pinMode(dirPin, OUTPUT);
-  pinMode(linkPin, INPUT_PULLUP);
-  digitalWrite(greenLEDpin, HIGH);
-  digitalWrite(redLEDpin, HIGH);
-  digitalWrite(reedRelayPin, LOW);
-  digitalWrite(enablePin, HIGH); 
-  digitalWrite(gateOn, LOW);
-  digitalWrite(gateOff, LOW);
+
+  if (gateType == "X") {
+    // Servo-only mode: avoid driving pins that may overlap with servo PWM.
+    pinMode(reedRelayPin, OUTPUT);
+    digitalWrite(reedRelayPin, LOW);
+  } else {
+    pinMode(reedRelayPin, OUTPUT);
+    pinMode(greenLEDpin, OUTPUT);
+    pinMode(redLEDpin, OUTPUT);
+    pinMode(enablePin, OUTPUT);
+    pinMode(limitSwitchPin, INPUT_PULLUP);
+    pinMode(gateOn, OUTPUT);
+    pinMode(gateOff, OUTPUT);
+    pinMode(stepPin, OUTPUT);
+    pinMode(dirPin, OUTPUT);
+    pinMode(linkPin, INPUT_PULLUP);
+    digitalWrite(greenLEDpin, HIGH);
+    digitalWrite(redLEDpin, HIGH);
+    digitalWrite(reedRelayPin, LOW);
+    digitalWrite(enablePin, HIGH);
+    digitalWrite(gateOn, LOW);
+    digitalWrite(gateOff, LOW);
+  }
 
   //trace = "Booting";
   //displayStat();
