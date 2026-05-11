@@ -232,7 +232,13 @@ void loop()
 
     if (sensorIn < trigger) {
       dbNew = "L166";
-      if (gateOpenState == true) {
+      // Be resilient to stale gateOpenState: if state machine still reports
+      // OPEN/OPENING, continue to run the close path.
+      const bool shouldClose = gateOpenState ||
+                               (gateState == STATE_OPEN) ||
+                               (gateState == STATE_OPENING) ||
+                               moveState;
+      if (shouldClose) {
         closeGate();
       }
 
