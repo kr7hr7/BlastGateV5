@@ -186,7 +186,8 @@ static const MachineGateEntry machineGateTable[] = {
   {15, "Edge Sander",           "B"},
   {16, "12 inch Jointer",       "A"},
   {17, "Jet 14 Bandsaw",        "B"},
-  {25, "Robust Lathe",          "X"},
+  {24, "Robust #2",             "L"},
+  {25, "Robust #1",             "L"},
   {26, "Miter Saw",             "P"},
   {29, "20 inch Planer",        "A"},
   {30, "Router table #1",       "B"},
@@ -203,6 +204,7 @@ static const MachineGateEntry machineGateTable[] = {
   {50, "Static Pressure Sensor","S"},
   {51, "Miter Saw Cleanup  ",   "C"},
   {52, "Exhaust Back Pressure", "S"},
+  {60, "Powermatic Lathe",      "L"},
 };
 
 

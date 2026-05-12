@@ -4,7 +4,7 @@
 void settings() {
   boardID               = "64";
   machineID             = "43";
-  gateDelaySeconds      = 05;
+  gateDelaySeconds      = 60;
   closeSwitchDebounceMs = 250;
 
 
