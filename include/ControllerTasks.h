@@ -4,5 +4,6 @@
 void S_StaticPressureTasks();
 void manualGateTasks();
 void gateTypeL_Tasks();
+void gateTypeLServoSetup();
 
 

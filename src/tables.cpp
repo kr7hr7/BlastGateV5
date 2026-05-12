@@ -110,8 +110,14 @@ static const BoardConfigEntry boardTable[] = {
   {"v13 Green",  48, 48,13,  32,  5, 19, 5,   5,    5,  27, 16,   4, 17,18, 4, 32, 17},
   {"v13 Green",  49, 49,13,  32, 18, 19, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
   {"v10 Blue",   50, 50,10,  32, 19, 18, 5,   5,    5,  27, 16,   4, 17, 5, 5, 5, 5},
-  {"v14 Blue",   60, 60,14,  27, 18, 19, 27, 27,   27,  27, 16,   4, 17, 32, 27, 25, 33},
-  //              MID   Ver  A0  LS  RR  GLED RLED GON GOFF STEP DIR ENBL SWA SVA SWB SVB
+  {"v14 Blue",   60, 60,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   61, 61,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   62, 62,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   63, 63,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+  {"v14 Blue",   64, 64,14,  39, 18, 19, 27, 27,   27,  27, 16,   4, 17, 25, 27, 32, 33},
+
+
+    //              MID   Ver  A0  LS  RR  GLED RLED GON GOFF STEP DIR ENBL SWA SVA SWB SVB
 };
 
 // look up pin assignments based on the boardIdByte read from EEPROM
@@ -166,7 +172,7 @@ struct MachineGateEntry {
 // Unrecognized IDs default to "NA"/"Z" — no placeholder row needed.
 // Keep rows sorted by toolInt ascending for readability.
 static const MachineGateEntry machineGateTable[] = {
-  {0,  "New Gate",              "L"},
+  {0,  "New Gate",              "B"},
   {1,  "Laguna_Resaw",          "A"},
   {2,  "Laguna_3000",           "A"},
   {3,  "Laguna SE",             "A"},
@@ -180,7 +186,8 @@ static const MachineGateEntry machineGateTable[] = {
   {15, "Edge Sander",           "B"},
   {16, "12 inch Jointer",       "A"},
   {17, "Jet 14 Bandsaw",        "B"},
-  {25, "Robust Lathe",          "X"},
+  {24, "Robust #2",             "L"},
+  {25, "Robust #1",             "L"},
   {26, "Miter Saw",             "P"},
   {29, "20 inch Planer",        "A"},
   {30, "Router table #1",       "B"},
@@ -192,11 +199,12 @@ static const MachineGateEntry machineGateTable[] = {
   {37, "Pegas",                 "W"},
   {38, "Combo Sander #2",       "B"},
   {39, "SawStop#2",             "A"},
-  {43, "Jet 12-21 Lathe",       "X"},
+  {43, "Jet 12-21 Lathe",       "L"},
   {45, "15 inch planer",        "A"},
   {50, "Static Pressure Sensor","S"},
   {51, "Miter Saw Cleanup  ",   "C"},
   {52, "Exhaust Back Pressure", "S"},
+  {60, "Powermatic Lathe",      "L"},
 };
 
 

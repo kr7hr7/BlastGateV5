@@ -1,4 +1,5 @@
 #include "globals.h"
+#include "ControllerTasks.h"
 
 void setupTasks()
 {
@@ -52,22 +53,29 @@ void setupTasks()
   displayStat();
 
   pinMode(ANALOG_PIN_IN, INPUT);
-  pinMode(reedRelayPin, OUTPUT);
-  pinMode(greenLEDpin, OUTPUT);
-  pinMode(redLEDpin, OUTPUT);
-  pinMode(enablePin, OUTPUT);
-  pinMode(limitSwitchPin, INPUT_PULLUP);
-  pinMode(gateOn, OUTPUT);
-  pinMode(gateOff, OUTPUT);
-  pinMode(stepPin, OUTPUT);
-  pinMode(dirPin, OUTPUT);
-  pinMode(linkPin, INPUT_PULLUP);
-  digitalWrite(greenLEDpin, HIGH);
-  digitalWrite(redLEDpin, HIGH);
-  digitalWrite(reedRelayPin, LOW);
-  digitalWrite(enablePin, HIGH); 
-  digitalWrite(gateOn, LOW);
-  digitalWrite(gateOff, LOW);
+
+  if (gateType == "X") {
+    // Servo-only mode: avoid driving pins that may overlap with servo PWM.
+    pinMode(reedRelayPin, OUTPUT);
+    digitalWrite(reedRelayPin, LOW);
+  } else {
+    pinMode(reedRelayPin, OUTPUT);
+    pinMode(greenLEDpin, OUTPUT);
+    pinMode(redLEDpin, OUTPUT);
+    pinMode(enablePin, OUTPUT);
+    pinMode(limitSwitchPin, INPUT_PULLUP);
+    pinMode(gateOn, OUTPUT);
+    pinMode(gateOff, OUTPUT);
+    pinMode(stepPin, OUTPUT);
+    pinMode(dirPin, OUTPUT);
+    pinMode(linkPin, INPUT_PULLUP);
+    digitalWrite(greenLEDpin, HIGH);
+    digitalWrite(redLEDpin, HIGH);
+    digitalWrite(reedRelayPin, LOW);
+    digitalWrite(enablePin, HIGH);
+    digitalWrite(gateOn, LOW);
+    digitalWrite(gateOff, LOW);
+  }
 
   //trace = "Booting";
   //displayStat();
@@ -285,12 +293,28 @@ void setupTasks()
 //*****************************************
   if (gateType =="X") {
     Serial.println("Setup line 270 Gate Type = X");
-  pinMode(switchPinA, INPUT_PULLUP);
-  pinMode(switchPinB, INPUT_PULLUP);
-  pinMode(servoPinA, OUTPUT);
-  pinMode(servoPinB, OUTPUT); 
-  return;
-}
+    pinMode(switchPinA, INPUT_PULLUP);
+    pinMode(switchPinB, INPUT_PULLUP);
+    pinMode(servoPinA, OUTPUT);
+    pinMode(servoPinB, OUTPUT);
+    return;
+  }
+
+  //*****************************************
+  if (gateType == "L") {
+    Serial.println("Setup Gate Type = L (switch A=stepper, switch B=servo)");
+    pinMode(switchPinA, INPUT_PULLUP);
+    pinMode(switchPinB, INPUT_PULLUP);
+    homePosition();
+    gateTypeLServoSetup();
+    trace = "CLOSED";
+    gateOpenTime = 0;
+    displayStat();
+    setGateState(STATE_CLOSED);
+    return;
+  }
+
+
 
   //*****************************************
   if (gateType == "M")

@@ -2,9 +2,9 @@
 """Upload target selection for PlatformIO OTA uploads.
 
 Interactive menu shown on every OTA upload:
-  0. Abort
-  1. USB (<port>)
-  2+. Discovered OTA devices on the local network
+    0. Abort
+    1..N Available USB COM ports
+    N+1..M Discovered OTA devices on the local network
 """
 
 import os
@@ -188,8 +188,15 @@ def _discover_usb_ports(preferred_port=None):
         except Exception:
             pass
 
-    # Add preferred port from project options even if not currently detected.
-    if preferred_port and preferred_port not in ports:
+    # Always include known common USB options so they can be selected even
+    # if transient discovery misses them.
+    for common_port in ("COM3", "COM4"):
+        if common_port and common_port not in ports:
+            ports.append(common_port)
+
+    # If preferred port exists in discovered list, move it to the front.
+    if preferred_port and preferred_port in ports:
+        ports.remove(preferred_port)
         ports.insert(0, preferred_port)
 
     # Deduplicate while preserving order.
@@ -206,7 +213,7 @@ def _prompt_combined_menu(usb_ports, ota_devices):
     Returns selected option dict, None to abort, or "__EOF__" when input stream
     cannot be read interactively.
     """
-    options = [{"type": "abort", "label": "Abort upload"}]
+    options = []
     for usb_port in usb_ports:
         options.append(
             {"type": "usb", "label": f"USB ({usb_port})", "port": usb_port}
@@ -219,6 +226,9 @@ def _prompt_combined_menu(usb_ports, ota_devices):
                 "device": device,
             }
         )
+
+    if not options:
+        return "__NO_OPTIONS__"
 
     print("\nSelect upload target:")
     print("  0. Abort upload")
@@ -237,8 +247,6 @@ def _prompt_combined_menu(usb_ports, ota_devices):
             idx = int(raw)
             if 1 <= idx <= len(options):
                 selected = options[idx - 1]
-                if selected["type"] == "abort":
-                    return None
                 return selected
         print(f"Invalid selection. Enter 1-{len(options)} or 0/q to abort.")
 
@@ -255,13 +263,37 @@ def select_upload_target(*args, **kwargs):
     ota_devices = discover_ota_devices()
     ota_devices.sort(key=lambda item: item["name"])
 
+    print("\nDiscovered upload targets:")
+    print(f"  USB ports: {len(usb_ports)}")
+    for port in usb_ports:
+        print(f"    - {port}")
+    print(f"  OTA devices: {len(ota_devices)}")
+    for dev in ota_devices:
+        print(f"    - {dev['name']} ({dev['ip']})")
+
     if not sys.stdin.isatty():
+        # VS Code tasks may run non-interactive. In this mode we only auto-use
+        # a unique discovered OTA target; otherwise require interactive selection.
+        if len(ota_devices) == 1:
+            device = ota_devices[0]
+            env.Replace(UPLOAD_PORT=device["ip"])
+            print(
+                f"\nNon-interactive mode: auto-selected discovered OTA device "
+                f"'{device['name']}' at {device['ip']}"
+            )
+            return
+
         print("\nInteractive selection is required, but no interactive terminal is available.")
-        print("Upload aborted. Re-run from an interactive terminal/task to choose USB/OTA or Abort.")
+        print("Run upload from an interactive terminal to choose USB/OTA/Abort.")
         env.Exit(1)
         return
 
     selected = _prompt_combined_menu(usb_ports, ota_devices)
+    if selected == "__NO_OPTIONS__":
+        print("No upload targets available. Upload aborted.")
+        env.Exit(1)
+        return
+
     if selected == "__EOF__" or selected is None:
         print("Upload aborted by user.")
         env.Exit(1)

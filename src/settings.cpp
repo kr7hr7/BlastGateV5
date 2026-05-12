@@ -2,10 +2,9 @@
 #include "globals.h"
 
 void settings() {
-
-  boardID               = "60";
-  machineID             = "00";
-  gateDelaySeconds      = 05;
+  boardID               = "64";
+  machineID             = "43";
+  gateDelaySeconds      = 60;
   closeSwitchDebounceMs = 250;
 
 
@@ -16,7 +15,7 @@ void settings() {
   closedA               = 35;
   closedB               = 40;
  
-  eepromUpdate          = false;
+  eepromUpdate          = true;
 
 
 

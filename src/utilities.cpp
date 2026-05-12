@@ -1,6 +1,48 @@
 #include "utilities.h"
 #include "globals.h"
 
+namespace {
+constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
+constexpr int SWITCH_ON_STATE = LOW;
+
+// Home switch is wired with INPUT_PULLUP on current hardware, so HOME is LOW.
+// Keep this helper centralized so all state-machine paths use the same meaning.
+static inline bool isHomeSwitchActiveRaw(int raw) {
+  return raw == LIMIT_SWITCH_HOME_STATE;
+}
+}
+
+void printInputStates() {
+  static int lastRawLimit = -1;
+  static int lastRawA = -1;
+  static int lastRawB = -1;
+
+  const int rawLimit = digitalRead(limitSwitchPin);
+  const int rawA = digitalRead(switchPinA);
+  const int rawB = digitalRead(switchPinB);
+
+  if (rawLimit == lastRawLimit && rawA == lastRawA && rawB == lastRawB) {
+    return;
+  }
+
+  lastRawLimit = rawLimit;
+  lastRawA = rawA;
+  lastRawB = rawB;
+
+  Serial.print("[Inputs] Home raw=");
+  Serial.print(rawLimit);
+  Serial.print(" state=");
+  Serial.print(isHomeSwitchActiveRaw(rawLimit) ? "HOME" : "NOT_HOME");
+  Serial.print(" | A raw=");
+  Serial.print(rawA);
+  Serial.print(" state=");
+  Serial.print((rawA == SWITCH_ON_STATE) ? "ON" : "OFF");
+  Serial.print(" | B raw=");
+  Serial.print(rawB);
+  Serial.print(" state=");
+  Serial.println((rawB == SWITCH_ON_STATE) ? "ON" : "OFF");
+}
+
 // Publish gate state only when it changes unless force=true.
 bool publishGateState(bool force) {
   static GateState lastPublishedState = STATE_UNKNOWN;
@@ -187,9 +229,40 @@ void MQTTconnect() {
 
 //------------------------------------------------------------------------------
 void checkSwitchState() {
+  static bool initialized = false;
+  static int lastRawLimit = HIGH;
+  static int debouncedLimit = HIGH;
+  static unsigned long lastEdgeUs = 0;
+  const int debounceMs = (closeSwitchDebounceMs < 5) ? 5 : closeSwitchDebounceMs;
+  const unsigned long debounceUs = (unsigned long)debounceMs * 1000UL;
 
   ArduinoOTA.handle();
-  if (digitalRead(limitSwitchPin) == HIGH) {
+  const int rawLimit = digitalRead(limitSwitchPin);
+
+  const unsigned long nowUs = micros();
+  if (!initialized) {
+    initialized = true;
+    lastRawLimit = rawLimit;
+    debouncedLimit = rawLimit;
+    lastEdgeUs = nowUs;
+  }
+
+  if (rawLimit != lastRawLimit) {
+    lastRawLimit = rawLimit;
+    lastEdgeUs = nowUs;
+  }
+
+  if (((unsigned long)(nowUs - lastEdgeUs) >= debounceUs) && (debouncedLimit != lastRawLimit)) {
+    debouncedLimit = lastRawLimit;
+    Serial.print("[checkSwitchState] limitSwitchPin raw=");
+    Serial.print(debouncedLimit);
+    Serial.print(" state=");
+    Serial.println(isHomeSwitchActiveRaw(debouncedLimit) ? "HOME" : "NOT_HOME");
+  }
+
+  // State-machine flags must reflect physical switch state immediately.
+  // Debounced value is retained for diagnostics only.
+  if (!isHomeSwitchActiveRaw(rawLimit)) {
     limitSwitchState = false;
     gateCloseState = false;
   }

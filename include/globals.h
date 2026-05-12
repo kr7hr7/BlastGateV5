@@ -9,6 +9,7 @@
 #include <EEPROM.h>
 #include <ArduinoOTA.h>
 #include <HTTPClient.h>
+#include <ESP32Servo.h>
 
 // gate state enumeration used for state machine logic
 enum GateState {
@@ -45,6 +46,7 @@ void checkSwitchState();
 void pingBroker(void* parameters);
 void keepWiFiAlive(void* parameters);
 void printStat();
+void printInputStates();
 void displayStat();
 void updateSensorInOnOled(bool forceRedraw = false, bool pushDisplay = true);
 void redrawSensorInOnOled(bool pushDisplay = true);
@@ -117,6 +119,8 @@ extern int       switchPinA;
 extern int       servoPinA;
 extern int       switchPinB;
 extern int       servoPinB;
+extern Servo     servoA;
+extern Servo     servoB;
 
 //------- MQTTconnect variables-------------------
 extern int       toolInt;
@@ -218,6 +222,11 @@ extern int           openB;
 extern int           closedA;
 extern int           closedB;
 extern String        gateType;
+extern bool          modeLServoBCountdownActive;
+extern unsigned long modeLServoBCountdownStart;
+extern int           modeLServoBCountdownDurationSec;
+extern int           modeLServoBPausedRemainingSec;
+extern bool          modeLServoBIsOpen;
 
 extern const char*   mqtt_server;
 extern const char*   mqtt_serverAlt;
