@@ -188,24 +188,40 @@ void keepMqttAlive(void* parameters) {
   const char* mqttUser = machineIDChar;
 
   for (;;) {
+    // Keep the MQTT client state machine serviced.
+    client.loop();
 
-    //Serial.println("keepMqttAlive Line 72");
-    client.loop();  // CRITICAL: Must call to maintain MQTT connection
-    if (client.connected()) {
-      //Serial.println(" keepMqttAlive  MQTT Connected");
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("MQTT reconnect skipped: WiFi not connected");
+      vTaskDelay(5000 / portTICK_PERIOD_MS);
+      continue;
     }
-    if (!client.connected()) {
-      Serial.println("MQTT Not Connected!  Attempting to connect to broker");
-      client.connect(mqttName, mqttUser, "LetBGin!", availabilityTopic, 0, true, "offline");
-      delay(2000);
 
-      if (WiFi.status() == WL_CONNECTED) {
-        Serial.println("MQTT Re-Connected");
+    if (!client.connected()) {
+      Serial.println("MQTT not connected. Attempting reconnect...");
+      const bool connected = client.connect(
+          mqttName,
+          mqttUser,
+          "LetBGin!",
+          availabilityTopic,
+          0,
+          true,
+          "offline");
+
+      if (connected) {
+        Serial.println("MQTT reconnected");
+        client.publish(availabilityTopic, "online");
         publishGateState(true);
         displayStat();
       }
+      else {
+        Serial.print("MQTT reconnect failed, rc=");
+        Serial.println(client.state());
+      }
     }
-    vTaskDelay(60000 / portTICK_PERIOD_MS);  // wait 1 minutes before checking the status again
+
+    // Retry cadence kept short for quicker auto-recovery.
+    vTaskDelay(5000 / portTICK_PERIOD_MS);
   }
 }
 

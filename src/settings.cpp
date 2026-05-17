@@ -32,7 +32,7 @@ void settings() {
   triggerDelta           = 200;
   maxMissedSteps         = 2000; // the }max number of steps that can be missed on homing before stopping the stepper
   delayTime              = 85;   // hold time between steps lower=faster higher=slower. 200-400 for 4988 drivers,  75-125 for TMC2209 drivers
-  
+  rotation               = false;
 
   GOOGLE_SCRIPT_Boot   = "https://script.google.com/macros/s/AKfycbzuAAYRi9SCfKLZUx0ZxZI88JoB08p8I9PuNVDV2ve5m2nUU8vzUEZ7BRLSp53GSLSXSg/exec?";
 

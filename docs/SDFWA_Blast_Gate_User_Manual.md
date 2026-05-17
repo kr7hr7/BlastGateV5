@@ -24,17 +24,16 @@ The SDFWA Blast Gate System provides automated dust collection management for th
 
 ### 1.1 Purpose
 
-This manual serves two purposes: it provides operational guidance for maintenance team members responsible for the day-to-day upkeep of the blast gate system, and it serves as technical documentation for future reengineering  to configure, extend, or troubleshoot the system. It covers system architecture, firmware configuration via VS Code, and Home Assistant integration.
+This manual serves two purposes: it provides operational guidance for maintenance team members responsible for the day-to-day upkeep of the blast gate system, and it serves as technical documentation for support technicians who need to configure, extend, or troubleshoot the system. It covers system architecture, firmware configuration via VS Code, and Home Assistant integration.
 
 ### 1.2 System Components
 
-- Blast gate controllers (one per tool).   
-  - There are about 25 blast gate controllers in the system.  There is one for each stationary power tool.  The controller:
-    - monitors the power cord for the tool to sense is if the tool is on or off
-    - if the tool is on, the controller opens the gate, closes the signal relay contacts that are monitored by the Jace
-    - when the tool is turned off, the controller begins a countdown (software configurable but normally 15 seconds). After the countdown the gate is closed and the JACE signal 
-    - communicates via MQTT to the HA the current state of the gate (open, closed, opening, closing, unknown) to home assistant
-    - There are multiple versions of the controllers. addition details available in the appendix
+- Blast gate controllers (one per tool). There are approximately 25 controllers in the system — one for each stationary power tool. Each controller:
+  - Monitors the tool's power cord to detect whether the tool is on or off
+  - When the tool is on: opens the blast gate and closes the signal relay contacts monitored by the JACE
+  - When the tool is turned off: begins a configurable countdown (normally 15 seconds), then closes the gate and signals the JACE
+  - Communicates the current gate state (open, closed, opening, closing, unknown) to Home Assistant via MQTT
+  - Note: multiple hardware versions exist — see the Appendix for details
 
 - System sensors 
 - Central Power Supply / low voltage & signal wiring 
