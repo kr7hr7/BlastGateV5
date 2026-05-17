@@ -9,6 +9,15 @@ constexpr unsigned long HOME_RAW_CONFIRM_US = 800UL;
 static inline bool isHomeSwitchActiveRaw(int raw) {
   return raw == LIMIT_SWITCH_HOME_STATE;
 }
+
+// Apply logical direction and invert it when rotation is enabled.
+static inline void setStepperDirection(bool clockwise) {
+  bool dirHigh = clockwise;
+  if (rotation) {
+    dirHigh = !dirHigh;
+  }
+  digitalWrite(dirPin, dirHigh ? HIGH : LOW);
+}
 }
 
 // ***************************************************************************
@@ -20,7 +29,7 @@ void homePosition() {
     delayMicroseconds(HOME_RAW_CONFIRM_US);
     if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
       setGateState(STATE_CLOSED);
-      digitalWrite(enablePin, HIGH);
+      digitalWrite(enablePin, HIGH);  // disable stepper (idle)
       stepPosition = 0;
       gateCloseState = true;
       gateOpenState = false;
@@ -30,11 +39,8 @@ void homePosition() {
     }
   }
 
-  digitalWrite(enablePin, LOW);
-  digitalWrite(dirPin, HIGH);  //turn clockwise
-  if (rotation == true) {
-    digitalWrite(dirPin, LOW);
-  }
+  setStepperDirection(true);  // close direction
+  digitalWrite(enablePin, LOW);  // enable stepper (active during stepping)
   trace = "Closing";
   displayStat();
   setGateState(STATE_CLOSING);
@@ -159,19 +165,14 @@ void homePosition() {
     }
   }
 
+  // Disable stepper after stepping completes
+  digitalWrite(enablePin, HIGH);
+
   setGateState(STATE_CLOSED);
   Serial.print("[homePosition] reached home raw=");
   Serial.print(digitalRead(limitSwitchPin));
   Serial.print(" state=");
   Serial.println(isHomeSwitchActiveRaw(digitalRead(limitSwitchPin)) ? "HOME" : "NOT_HOME");
-  // Gate Type B mechanics can relax off the switch if the driver is disabled
-  // immediately after homing. Keep holding torque enabled at closed to prevent
-  // repeated re-homing cycles.
-  if (gateType == "B") {
-    digitalWrite(enablePin, LOW);
-  } else {
-    digitalWrite(enablePin, HIGH);
-  }
   stepPosition = 0;
   gateCloseState = true;
   gateOpenState = false;
@@ -325,11 +326,8 @@ void openGate() {
     display.display();
   }
   //Serial.println(" OpenGate line 115");
-  digitalWrite(enablePin, LOW);
-  digitalWrite(dirPin, LOW);  // turn counterClockwise
-  if (rotation == true) {
-    digitalWrite(dirPin, HIGH);
-  }
+  setStepperDirection(false);  // open direction
+  digitalWrite(enablePin, LOW);  // enable stepper (active during stepping)
   for (stepPosition = 0; stepPosition < fullRunSteps; stepPosition++) {
     digitalWrite(stepPin, HIGH);
     delayMicroseconds(delayTime);
@@ -343,6 +341,7 @@ void openGate() {
     }
     //Serial.println(" OpenGate line 126");
   }
+  // Disable stepper after stepping completes
   digitalWrite(enablePin, HIGH);
   gateOpenState = true;
   gateCloseState = false;
@@ -351,7 +350,6 @@ void openGate() {
   displayStat();
   startTime = 0;
   moveState = false;
-  digitalWrite(enablePin, HIGH);
   setGateState(STATE_OPEN);
   //Serial.println(" OpenGate line 137");
 }

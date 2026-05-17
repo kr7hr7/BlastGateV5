@@ -47,23 +47,18 @@ void boardconfiguration() {
 void gateTypeConfig() {
   //Serial.println ("CONFIG!!!!!!!!!! Line 2");
   if (gateType == "A") {   // For 5" Gates
-    rotation = false;
     fullRunSteps = 22500;
   }
   if (gateType == "B") {   // For 4" Gates
-    rotation = false;
     fullRunSteps = 18000;
   }
   if (gateType == "C") {    // For use with the 5"gate Dust collector remains on during the countdown
-    rotation = false;
     fullRunSteps = 22500;
   }
   if (gateType == "D") {   // For use with 4" Gate Cleanup Ports Dust Collector remains on during the countdown
-    rotation = false;
     fullRunSteps = 18000;
   }
   if (gateType == "L") {   // Like D mechanics, but trigger polarity is handled in loop tasks
-    rotation = false;
     fullRunSteps = 18000;
   }
 

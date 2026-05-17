@@ -163,48 +163,49 @@ struct MachineGateEntry {
   int toolInt;
   const char *gateName;
   const char *gateTypeString;
+  bool rotation;
 };
 
 // One row per machine/blast-gate mapping.
 // To add a machine: insert a new line anywhere in the table below:
-//   {toolInt, "Machine Name", "X"},
+//   {toolInt, "Machine Name", "X", rotation},
 // where toolInt is the numeric ID and "X" is the gate mode (A/B/C/M/P/S/W/X/Y/Z).
 // Unrecognized IDs default to "NA"/"Z" — no placeholder row needed.
 // Keep rows sorted by toolInt ascending for readability.
 static const MachineGateEntry machineGateTable[] = {
-  {0,  "New Gate",              "B"},
-  {1,  "Laguna_Resaw",          "A"},
-  {2,  "Laguna_3000",           "A"},
-  {3,  "Laguna SE",             "A"},
-  {4,  "CNC HDM",               "C"},
-  {5,  "CNC XXL",               "C"},
-  {6,  "Jet Combo Sander",      "B"},
-  {10, "Supermax_2",            "A"},
-  {11, "Supermax_1",            "A"},
-  {12, "16 Jointer",            "A"},
-  {14, "Dust Collector",        "M"},
-  {15, "Edge Sander",           "B"},
-  {16, "12 inch Jointer",       "A"},
-  {17, "Jet 14 Bandsaw",        "B"},
-  {24, "Robust #2",             "L"},
-  {25, "Robust #1",             "L"},
-  {26, "Miter Saw",             "P"},
-  {29, "20 inch Planer",        "A"},
-  {30, "Router table #1",       "B"},
-  {31, "Router table #2",       "B"},
-  {33, "Enlon Spindle Sander",  "B"},
-  {34, "Powermatic Spindle",    "B"},
-  {35, "SawStop #1",            "A"},
-  {36, "Removed SawStop #2",    "Y"},
-  {37, "Pegas",                 "W"},
-  {38, "Combo Sander #2",       "B"},
-  {39, "SawStop#2",             "A"},
-  {43, "Jet 12-21 Lathe",       "L"},
-  {45, "15 inch planer",        "A"},
-  {50, "Static Pressure Sensor","S"},
-  {51, "Miter Saw Cleanup  ",   "C"},
-  {52, "Exhaust Back Pressure", "S"},
-  {60, "Powermatic Lathe",      "L"},
+  {0,  "New Gate",              "B", true},
+  {1,  "Laguna_Resaw",          "A", false},
+  {2,  "Laguna_3000",           "A", false},
+  {3,  "Laguna SE",             "A", false},
+  {4,  "CNC HDM",               "C", false},
+  {5,  "CNC XXL",               "C", false},
+  {6,  "Jet Combo Sander",      "B", false},
+  {10, "Supermax_2",            "A", false},
+  {11, "Supermax_1",            "A", false},
+  {12, "16 Jointer",            "A", false},
+  {14, "Dust Collector",        "M", false},
+  {15, "Edge Sander",           "B", false},
+  {16, "12 inch Jointer",       "A", false},
+  {17, "Jet 14 Bandsaw",        "B", false},
+  {24, "Robust #2",             "L", false},
+  {25, "Robust #1",             "L", false},
+  {26, "Miter Saw",             "P", false},
+  {29, "20 inch Planer",        "A", false},
+  {30, "Router table #1",       "B", false},
+  {31, "Router table #2",       "B", false},
+  {33, "Enlon Spindle Sander",  "B", false},
+  {34, "Powermatic Spindle",    "B", false},
+  {35, "SawStop #1",            "A", false},
+  {36, "Removed SawStop #2",    "Y", false},
+  {37, "Pegas",                 "W", false},
+  {38, "Combo Sander #2",       "B", false},
+  {39, "SawStop#2",             "A", false},
+  {43, "Jet 12-21 Lathe",       "L", false},
+  {45, "15 inch planer",        "A", false},
+  {50, "Static Pressure Sensor","S", false},
+  {51, "Miter Saw Cleanup  ",   "C", false},
+  {52, "Exhaust Back Pressure", "S", false},
+  {60, "Powermatic Lathe",      "L", false},
 };
 
 
@@ -215,12 +216,14 @@ void tools()   {
   toolString = "NA";
   gateTypeString = "Z";
   gateType = gateTypeString;
+  rotation = false;
 
   for (const auto &entry : machineGateTable) {
     if (entry.toolInt == toolInt) {
       toolString = entry.gateName;
       gateTypeString = entry.gateTypeString;
       gateType = gateTypeString;
+      rotation = entry.rotation;
       break;
     }
   }
