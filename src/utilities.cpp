@@ -211,6 +211,13 @@ void keepMqttAlive(void* parameters) {
       if (connected) {
         Serial.println("MQTT reconnected");
         client.publish(availabilityTopic, "online");
+        
+        // Re-subscribe to reconnect command topic after reconnection
+        String reconnectTopic = String(mID) + "/command";
+        client.subscribe(reconnectTopic.c_str());
+        Serial.print("Subscribed to topic: ");
+        Serial.println(reconnectTopic);
+        
         publishGateState(true);
         displayStat();
       }
@@ -235,6 +242,13 @@ void MQTTconnect() {
   if (client.connected()) {
     Serial.println("MQTT Connected!");
     client.publish(availabilityTopic, "online");
+    
+    // Subscribe to reconnect command topic
+    String reconnectTopic = String(mID) + "/command";
+    client.subscribe(reconnectTopic.c_str());
+    Serial.print("Subscribed to topic: ");
+    Serial.println(reconnectTopic);
+    
     publishGateState(true);
   }
 
@@ -575,4 +589,54 @@ void logCycle() {
   //  dtostrf( temp, 12, 4, temp1);
 
   client.publish(cycleTopic , temp1);
+}
+
+//------------------------------------------------------------------
+// MQTT Callback function - called when a message is received on subscribed topics
+void mqttMessageCallback(char* topic, byte* payload, unsigned int length) {
+  // Convert payload to string for easier comparison
+  String message = "";
+  for (unsigned int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+
+  Serial.print("MQTT Message received on topic: ");
+  Serial.print(topic);
+  Serial.print(" | Payload: ");
+  Serial.println(message);
+
+  // Check if payload is "reconnect"
+  if (message.equalsIgnoreCase("reconnect")) {
+    Serial.println("Reconnect command received - displaying on OLED");
+    displayReconnectMessage();
+  }
+}
+
+//------------------------------------------------------------------
+// Display "Reconnect" message on OLED in large letters
+void displayReconnectMessage() {
+  if (!oledReady) {
+    Serial.println("OLED not ready - cannot display reconnect message");
+    return;
+  }
+
+  // Clear the display
+  display.clearDisplay();
+
+  // Set text properties
+  display.setTextColor(WHITE);
+  display.setTextSize(3);  // Large text size (3 is roughly 3x normal size)
+
+  // Center "Reconnect" text on the display
+  // Display is 128x64 pixels
+  // At text size 3, each character is approximately 18 pixels wide
+  // So "Reconnect" (9 chars) is roughly 162 pixels wide - wider than display
+  // We'll position it to fit as best as possible
+  display.setCursor(0, 20);  // Start near top-center area
+  display.println("Reconnect");
+
+  // Display the changes
+  display.display();
+
+  Serial.println("Reconnect message displayed on OLED");
 }

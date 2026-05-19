@@ -48,7 +48,7 @@ bool rotation = false;
 String urlFinal;
 bool eepromUpdate = false;   // flag used to trigger EEPROM update 
 char cycleTopic[15] = "";
-const char* ver = "05_16_2026";  // MM_DD_YYYY
+const char* ver = "05_18_2026";  // MM_DD_YYYY
 
 // Working Variables
 int sensorIn = 0;
@@ -145,6 +145,7 @@ const char* passwordAlt = nullptr;
 int trigger = 0;
 int triggerDelta = 0;
 int maxMissedSteps = 0;
+int openDelayTime = 0;
 int delayTime = 0;
 
 String GOOGLE_SCRIPT_ID;

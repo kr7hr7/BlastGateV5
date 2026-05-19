@@ -1,5 +1,6 @@
 #include "globals.h"
 #include "ControllerTasks.h"
+#include "utilities.h"
 
 void setupTasks()
 {
@@ -83,6 +84,9 @@ void setupTasks()
   closeDelayTime = 1000 * gateDelaySeconds;
   client.setKeepAlive(keepAlive);
   client.setServer(mqtt_server, 1883);
+  
+  // Set up MQTT callback to handle incoming messages
+  client.setCallback(mqttMessageCallback);
 
   MQTTconnect();
   trace = "MQTT";

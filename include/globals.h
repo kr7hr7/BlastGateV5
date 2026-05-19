@@ -238,6 +238,7 @@ extern const char*   passwordAlt;
 extern int           trigger;
 extern int           triggerDelta;
 extern int           maxMissedSteps;
+extern int           openDelayTime;
 extern int           delayTime;
 
 extern String        GOOGLE_SCRIPT_ID;

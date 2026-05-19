@@ -3,8 +3,8 @@
 
 namespace {
 constexpr int LIMIT_SWITCH_HOME_STATE = LOW;
-constexpr unsigned long MIN_HOME_PULSE_US = 75UL;
 constexpr unsigned long HOME_RAW_CONFIRM_US = 800UL;
+constexpr bool HOME_VERBOSE_DEBUG = false;
 
 static inline bool isHomeSwitchActiveRaw(int raw) {
   return raw == LIMIT_SWITCH_HOME_STATE;
@@ -22,8 +22,6 @@ static inline void setStepperDirection(bool clockwise) {
 
 // ***************************************************************************
 void homePosition() {
-  checkSwitchState();
-
   // Do not trust a potentially stale software flag here; verify raw switch.
   if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
     delayMicroseconds(HOME_RAW_CONFIRM_US);
@@ -46,14 +44,15 @@ void homePosition() {
   setGateState(STATE_CLOSING);
 
   stepPosition = 0;
-  Serial.print("[homePosition] limitSwitchPin raw=");
-  Serial.print(digitalRead(limitSwitchPin));
-  Serial.print(" state=");
-  Serial.println(isHomeSwitchActiveRaw(digitalRead(limitSwitchPin)) ? "HOME" : "NOT_HOME");
+  if (HOME_VERBOSE_DEBUG) {
+    Serial.print("[homePosition] limitSwitchPin raw=");
+    Serial.print(digitalRead(limitSwitchPin));
+    Serial.print(" state=");
+    Serial.println(isHomeSwitchActiveRaw(digitalRead(limitSwitchPin)) ? "HOME" : "NOT_HOME");
+  }
 
-  // Keep a conservative lower bound for homing, but allow the configured
-  // step timing to drive close speed on faster drivers.
-  const unsigned long homePulseUs = (unsigned long)((delayTime < (int)MIN_HOME_PULSE_US) ? MIN_HOME_PULSE_US : delayTime);
+  // Match close/homing step pulse timing to the same configured timing used for open.
+  const unsigned long homePulseUs = (delayTime > 0) ? (unsigned long)delayTime : 1UL;
 
   const unsigned long homeStartTime = millis();
   const unsigned long homeStepBudget = (unsigned long)(fullRunSteps + (maxMissedSteps * 8));
@@ -65,15 +64,15 @@ void homePosition() {
   static unsigned long hpLastDebounceB = 0;
   const unsigned long hpDebounceDelayB = 35;
 
-  Serial.print("[homePosition] pulseUs=");
-  Serial.print(homePulseUs);
-  Serial.print(" stepBudget=");
-  Serial.println(homeStepBudget);
+  if (HOME_VERBOSE_DEBUG) {
+    Serial.print("[homePosition] pulseUs=");
+    Serial.print(homePulseUs);
+    Serial.print(" stepBudget=");
+    Serial.println(homeStepBudget);
+  }
   // Time-based failsafe for unexpected stalls in close/homing state.
   const unsigned long maxHomeDurationMs = (homeStepBudget * (homePulseUs * 2UL + 350UL) / 1000UL) + 3000UL;
   for (;;) {
-    checkSwitchState();
-
     if (gateType == "L") {
       const unsigned long nowMs = millis();
       const int rawSwitchB = digitalRead(switchPinB);
@@ -115,10 +114,6 @@ void homePosition() {
       }
     }
 
-    if (limitSwitchState) {
-      break;
-    }
-
     // Home detection must be immediate and deterministic: use raw switch
     // state with a short confirm delay to reject very brief chatter.
     if (isHomeSwitchActiveRaw(digitalRead(limitSwitchPin))) {
@@ -135,13 +130,12 @@ void homePosition() {
     delayMicroseconds(homePulseUs);
     stepPosition++;
     
-    // Yield to background tasks every 100 steps (~17ms)
+    // Keep the close pulse stream tight: avoid OTA work in the stepping loop.
     if (stepPosition % 100 == 0) {
-      ArduinoOTA.handle();
       yield();
     }
 
-    if (stepPosition % 250 == 0) {
+    if (HOME_VERBOSE_DEBUG && stepPosition % 250 == 0) {
       const int rawLimit = digitalRead(limitSwitchPin);
       Serial.print("[homePosition] stepping raw=");
       Serial.print(rawLimit);
@@ -327,12 +321,15 @@ void openGate() {
   }
   //Serial.println(" OpenGate line 115");
   setStepperDirection(false);  // open direction
+  const unsigned long openPulseUs = (openDelayTime > 0)
+      ? (unsigned long)openDelayTime
+      : (unsigned long)((delayTime > 0) ? delayTime : 1);
   digitalWrite(enablePin, LOW);  // enable stepper (active during stepping)
   for (stepPosition = 0; stepPosition < fullRunSteps; stepPosition++) {
     digitalWrite(stepPin, HIGH);
-    delayMicroseconds(delayTime);
+    delayMicroseconds(openPulseUs);
     digitalWrite(stepPin, LOW);
-    delayMicroseconds(delayTime);
+    delayMicroseconds(openPulseUs);
     
     // Yield to background tasks every 100 steps (~17ms)
     if (stepPosition % 100 == 0) {
